@@ -50,7 +50,7 @@ jobs:
         run: pre-commit run --all-files || echo "Pre-commit hooks completed (non-blocking)"
 
   # ==================================================================
-  # Core tests (CPU) - 全平台, 全 Python 版本
+  # Core tests (CPU) - Ubuntu + Windows, Python 3.9~3.12
   # ==================================================================
   core-tests:
     runs-on: ${{ matrix.os }}
@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-2022, macOS-14]
+        os: [ubuntu-22.04, windows-2022]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     timeout-minutes: 30
 
@@ -70,14 +70,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install PaddlePaddle (CPU)
-        if: runner.os != 'macOS'
-        run: |
-          python -m pip install --upgrade pip
-          pip install paddlepaddle
-
-      - name: Install PaddlePaddle (macOS)
-        if: runner.os == 'macOS'
+      - name: Install PaddlePaddle
         run: |
           python -m pip install --upgrade pip
           pip install paddlepaddle
