@@ -38,8 +38,7 @@ class AbstractClosure(ABC, Generic[T]):
         return result
 
     @abstractmethod
-    def closure(self, *args: Any, **kwargs: Any) -> T:
-        ...
+    def closure(self, *args: Any, **kwargs: Any) -> T: ...
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         self._result = self.closure(*args, **kwargs)

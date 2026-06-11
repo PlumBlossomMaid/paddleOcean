@@ -30,10 +30,7 @@ class ModelSummary:
         self.total_non_trainable_parameters = total_parameters - trainable_parameters
 
     def __repr__(self) -> str:
-        return (
-            f"ModelSummary(total_params={self.total_parameters}, "
-            f"trainable_params={self.trainable_parameters})"
-        )
+        return f"ModelSummary(total_params={self.total_parameters}, trainable_params={self.trainable_parameters})"
 
 
 def summarize(model: Any, max_depth: int = 1) -> ModelSummary:
@@ -61,10 +58,7 @@ def summarize(model: Any, max_depth: int = 1) -> ModelSummary:
 
     # Collect layer info
     for name, module in model.named_children():
-        num = sum(
-            p.numel().item() if hasattr(p.numel(), "item") else int(p.numel())
-            for p in module.parameters()
-        )
+        num = sum(p.numel().item() if hasattr(p.numel(), "item") else int(p.numel()) for p in module.parameters())
         layers.append((name, [module.__class__.__name__, f"{num:,}"]))
 
     return ModelSummary(

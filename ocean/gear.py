@@ -73,9 +73,7 @@ class Gear:
             return (module, *optimizers)
         return module
 
-    def setup_dataloaders(
-        self, *dataloaders: paddle.io.DataLoader, move_to_device: bool = True
-    ) -> Any:
+    def setup_dataloaders(self, *dataloaders: paddle.io.DataLoader, move_to_device: bool = True) -> Any:
         """Set up dataloaders. Returns the same dataloaders (future: distributed samplers).
 
         Args:
@@ -114,9 +112,7 @@ class Gear:
                 serializable[k] = v
         paddle.save(serializable, path)
 
-    def load(
-        self, path: str, state: Optional[dict[str, Any]] = None, strict: bool = True
-    ) -> dict[str, Any]:
+    def load(self, path: str, state: Optional[dict[str, Any]] = None, strict: bool = True) -> dict[str, Any]:
         """Load a checkpoint.
 
         Args:
@@ -153,6 +149,7 @@ class Gear:
         import random
 
         import numpy as np
+
         paddle.seed(seed)
         np.random.seed(seed)
         random.seed(seed)

@@ -19,6 +19,7 @@ class PredictionWriter(Callback):
         self.output_dir = output_dir
         self.write_interval = write_interval
         import os
+
         os.makedirs(output_dir, exist_ok=True)
 
     def on_predict_batch_end(
@@ -29,6 +30,7 @@ class PredictionWriter(Callback):
 
     def _write_batch(self, outputs: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         import os
+
         if isinstance(outputs, paddle.Tensor):
             paddle.save(outputs, os.path.join(self.output_dir, f"pred_{dataloader_idx}_{batch_idx}.pdtensor"))
         elif isinstance(outputs, dict):

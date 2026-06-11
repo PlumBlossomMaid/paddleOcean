@@ -39,17 +39,23 @@ class RunIf:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if self.skip_if:
                 import pytest
+
                 pytest.skip(self.reason)
             if self.min_cuda_version is not None:
                 import paddle
+
                 if not paddle.is_compiled_with_cuda():
                     import pytest
+
                     pytest.skip(f"Requires CUDA >= {self.min_cuda_version}")
             if self.min_paddle_version is not None:
                 import paddle
                 from packaging.version import Version
+
                 if Version(paddle.__version__) < Version(self.min_paddle_version):
                     import pytest
+
                     pytest.skip(f"Requires Paddle >= {self.min_paddle_version}")
             return fn(*args, **kwargs)
+
         return wrapper

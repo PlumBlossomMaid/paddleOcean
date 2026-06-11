@@ -56,6 +56,7 @@ class MLFlowLogger(Logger):
     def _create_experiment(self) -> Any:
         try:
             import mlflow
+
             if self._tracking_uri:
                 mlflow.set_tracking_uri(self._tracking_uri)
             experiment = mlflow.set_experiment(self._experiment_name)
@@ -65,11 +66,13 @@ class MLFlowLogger(Logger):
             self._run_id = run.info.run_id
             return mlflow
         except ImportError:
+
             class _DummyMlflow:
                 def log_metric(self, *a, **kw): ...
                 def log_param(self, *a, **kw): ...
                 def log_batch(self, *a, **kw): ...
                 def end_run(self, *a, **kw): ...
+
             return _DummyMlflow()
 
     @property
@@ -95,6 +98,7 @@ class MLFlowLogger(Logger):
     def log_hyperparams(self, params: dict[str, Any]) -> None:
         try:
             import mlflow
+
             params = self._flatten_dict(params)
             batch = []
             for k, v in params.items():
@@ -111,6 +115,7 @@ class MLFlowLogger(Logger):
     def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
         try:
             import mlflow
+
             prefixed = {}
             for k, v in metrics.items():
                 key = f"{self._prefix}{self.LOGGER_JOIN_CHAR}{k}" if self._prefix else k
@@ -124,8 +129,7 @@ class MLFlowLogger(Logger):
                 prefixed[key] = float(v)
 
             metrics_list = [
-                mlflow.entities.Metric(k, v, int(time.time() * 1000), step or 0)
-                for k, v in prefixed.items()
+                mlflow.entities.Metric(k, v, int(time.time() * 1000), step or 0) for k, v in prefixed.items()
             ]
             self.experiment.log_batch(run_id=self._run_id, metrics=metrics_list)
         except Exception:
@@ -134,6 +138,7 @@ class MLFlowLogger(Logger):
     def finalize(self, status: str = "success") -> None:
         try:
             import mlflow
+
             mlflow.end_run()
         except Exception:
             pass

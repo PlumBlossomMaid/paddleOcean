@@ -1,8 +1,6 @@
 """Upgrade checkpoint format across Ocean versions."""
 
 
-
-
 def upgrade_checkpoint(
     checkpoint: dict,
     from_version: str = "0.1.0",

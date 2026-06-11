@@ -1,6 +1,5 @@
 """Parameter tying detection utilities."""
 
-
 import paddle
 
 

@@ -28,6 +28,13 @@ exclude = [".git", ".github"]
 select = ["E", "W", "F", "I", "N"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]
+"**/tests/**" = ["F841"]
+"ocean/distributed.py" = ["N801", "N802"]
+"ocean/loggers/tensorboard.py" = ["F401"]
+"ocean/callbacks/rich_model_summary.py" = ["F401"]
+
 [tool.ruff.format]
 preview = true
 

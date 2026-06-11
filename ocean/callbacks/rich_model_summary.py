@@ -40,8 +40,7 @@ class RichModelSummary(ModelSummary):
 
             for name, module in model.named_children():
                 num = sum(
-                    p.numel().item() if hasattr(p.numel(), "item") else int(p.numel())
-                    for p in module.parameters()
+                    p.numel().item() if hasattr(p.numel(), "item") else int(p.numel()) for p in module.parameters()
                 )
                 table.add_row(name, module.__class__.__name__, f"{num:,}")
 

@@ -17,12 +17,14 @@ class OnExceptionCheckpoint(Callback):
         self.dirpath = dirpath
         self.filename = filename
         import os
+
         os.makedirs(dirpath, exist_ok=True)
 
     def on_exception(self, trainer: Any, model: Any, exception: BaseException) -> None:
         import os
 
         import paddle
+
         path = os.path.join(self.dirpath, self.filename)
         checkpoint = {"state_dict": model.state_dict(), "exception": str(exception)}
         paddle.save(checkpoint, path)

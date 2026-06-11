@@ -61,11 +61,16 @@ class Strategy(ABC):
     def is_global_zero(self) -> bool: ...
 
     @property
-    def global_rank(self) -> int: return 0
+    def global_rank(self) -> int:
+        return 0
+
     @property
-    def local_rank(self) -> int: return 0
+    def local_rank(self) -> int:
+        return 0
+
     @property
-    def world_size(self) -> int: return 1
+    def world_size(self) -> int:
+        return 1
 
     def connect(self, model: Any) -> None:
         self._lightning_module = model
@@ -88,6 +93,7 @@ class Strategy(ABC):
 
     def setup_optimizers(self, trainer: Any) -> None:
         from ocean.core.optimizer import init_optimizers_and_lr_schedulers
+
         opts, _ = init_optimizers_and_lr_schedulers(trainer._model)
         self._optimizers = opts
 
@@ -118,10 +124,17 @@ class Strategy(ABC):
     def reduce(self, tensor: Any, reduce_op: str = "mean") -> Any:
         return tensor
 
-    def barrier(self, name: Optional[str] = None) -> None: pass
-    def broadcast(self, obj: Any, src: int = 0) -> Any: return obj
-    def all_gather(self, tensor: Any, group: Any = None, sync_grads: bool = False) -> Any: return tensor
-    def reduce_boolean_decision(self, decision: bool, all: bool = True) -> bool: return decision
+    def barrier(self, name: Optional[str] = None) -> None:
+        pass
+
+    def broadcast(self, obj: Any, src: int = 0) -> Any:
+        return obj
+
+    def all_gather(self, tensor: Any, group: Any = None, sync_grads: bool = False) -> Any:
+        return tensor
+
+    def reduce_boolean_decision(self, decision: bool, all: bool = True) -> bool:
+        return decision
 
     def save_checkpoint(self, checkpoint: dict, filepath: str) -> None:
         if self.is_global_zero:

@@ -152,7 +152,9 @@ class _OptimizationProgress:
         self.optimizer = _OptimizerProgress()
 
     def state_dict(self) -> dict:
-        return {"optimizer": {"step": self.optimizer.step.state_dict(), "zero_grad": self.optimizer.zero_grad.state_dict()}}
+        return {
+            "optimizer": {"step": self.optimizer.step.state_dict(), "zero_grad": self.optimizer.zero_grad.state_dict()}
+        }
 
     def load_state_dict(self, state: dict) -> None:
         opt = state.get("optimizer", {})

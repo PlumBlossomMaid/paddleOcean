@@ -28,9 +28,9 @@ class DeepSpeedStrategy(DDPStrategy):
     """
 
     ZERO_MAP = {
-        1: "os_g",    # optimizer state sharding
-        2: "os_g2",   # optimizer + gradient sharding
-        3: "p_g",     # parameter sharding (full model sharding)
+        1: "os_g",  # optimizer state sharding
+        2: "os_g2",  # optimizer + gradient sharding
+        3: "p_g",  # parameter sharding (full model sharding)
     }
 
     def __init__(
@@ -55,6 +55,7 @@ class DeepSpeedStrategy(DDPStrategy):
         """Initialize Fleet distributed environment."""
         try:
             import ocean.distributed as odist
+
             odist.fleet.init(is_collective=True)
             self._fleet_initialized = True
         except Exception:
@@ -79,7 +80,8 @@ class DeepSpeedStrategy(DDPStrategy):
         if self.zero_stage >= 2:
             try:
                 paddle.distributed.sharding.save_group_sharded_model(
-                    self._model, filepath,
+                    self._model,
+                    filepath,
                 )
                 return
             except Exception:

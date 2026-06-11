@@ -32,5 +32,6 @@ class PaddleCheckpointIO(CheckpointIO):
 
     def remove_checkpoint(self, path: str) -> None:
         import os
+
         if os.path.exists(path):
             os.remove(path)

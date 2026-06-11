@@ -56,6 +56,7 @@ def save_hparams_to_yaml(hparams: dict[str, Any], path: str) -> None:
     """Save hyperparameters to a YAML file."""
     try:
         import yaml
+
         with open(path, "w") as f:
             yaml.dump(hparams, f, default_flow_style=False)
     except ImportError:
@@ -66,6 +67,7 @@ def load_hparams_from_yaml(path: str) -> dict[str, Any]:
     """Load hyperparameters from a YAML file."""
     try:
         import yaml
+
         with open(path, "r") as f:
             return yaml.safe_load(f) or {}
     except ImportError:

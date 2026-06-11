@@ -23,6 +23,7 @@ class OceanArgumentParser(argparse.ArgumentParser):
     def _add_trainer_args(self) -> None:
         """Add Trainer __init__ parameters as CLI arguments."""
         from ocean.trainer import Trainer
+
         sig = inspect.signature(Trainer.__init__)
         for name, param in sig.parameters.items():
             if name == "self" or name == "kwargs":
@@ -35,10 +36,10 @@ class OceanArgumentParser(argparse.ArgumentParser):
                 self.add_argument(f"--trainer.{name}", default=default, type=arg_type)
 
     def _add_model_args(self) -> None:
-        self.add_argument("--model", type=str, required=False,
-                          help="Fully qualified model class name, e.g. 'my_module.MyModel'")
-        self.add_argument("--model_config", type=str, default=None,
-                          help="Path to model config file")
+        self.add_argument(
+            "--model", type=str, required=False, help="Fully qualified model class name, e.g. 'my_module.MyModel'"
+        )
+        self.add_argument("--model_config", type=str, default=None, help="Path to model config file")
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,10 +62,11 @@ def main() -> None:
 
     # Build trainer
     from ocean.trainer import Trainer
+
     trainer_kwargs = {}
     for key, value in vars(args).items():
         if key.startswith("trainer."):
-            param_name = key[len("trainer."):]
+            param_name = key[len("trainer.") :]
             trainer_kwargs[param_name] = value
 
     trainer = Trainer(**trainer_kwargs)

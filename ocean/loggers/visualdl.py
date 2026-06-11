@@ -60,12 +60,14 @@ class VisualDLLogger(Logger):
         """Create a VisualDL LogWriter."""
         try:
             from visualdl import LogWriter
+
             return LogWriter(logdir=self.log_dir)
         except ImportError:
             # VisualDL not installed - use a dummy
             class _DummyWriter:
                 def add_scalar(self, *args, **kwargs): ...
                 def close(self): ...
+
             return _DummyWriter()
 
     def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
@@ -78,6 +80,7 @@ class VisualDLLogger(Logger):
     def log_hyperparams(self, params: dict[str, Any]) -> None:
         try:
             import yaml
+
             hparams_path = os.path.join(self.log_dir, "hparams.yaml")
             os.makedirs(os.path.dirname(hparams_path), exist_ok=True)
             with open(hparams_path, "w") as f:

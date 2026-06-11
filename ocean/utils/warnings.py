@@ -6,6 +6,7 @@ import warnings
 def rank_zero_warn(msg: str) -> None:
     """Emit a warning only on rank 0."""
     import os
+
     if int(os.environ.get("LOCAL_RANK", 0)) == 0:
         warnings.warn(msg, stacklevel=2)
 

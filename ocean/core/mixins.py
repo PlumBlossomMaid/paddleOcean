@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 class AttributeDict(dict):
     """A dict with attribute-style access."""
+
     def __getattr__(self, key: str) -> Any:
         try:
             return self[key]

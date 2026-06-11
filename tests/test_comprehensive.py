@@ -25,6 +25,7 @@ import ocean
 # Helper: Lightning-mode model
 # ====================================================================
 
+
 class LinearModel(ocean.Model):
     """Simple linear model for classification."""
 
@@ -58,6 +59,7 @@ class LinearModel(ocean.Model):
 # Helper: DataModule
 # ====================================================================
 
+
 class RandomDataModule(ocean.DataModule):
     def __init__(self, num_samples=100, batch_size=16):
         super().__init__()
@@ -67,15 +69,15 @@ class RandomDataModule(ocean.DataModule):
     def setup(self, stage):
         self.train_dataset = paddle.io.TensorDataset([
             paddle.randn([self.num_samples, 10]),
-            paddle.randint(0, 2, [self.num_samples])
+            paddle.randint(0, 2, [self.num_samples]),
         ])
         self.val_dataset = paddle.io.TensorDataset([
             paddle.randn([self.num_samples // 2, 10]),
-            paddle.randint(0, 2, [self.num_samples // 2])
+            paddle.randint(0, 2, [self.num_samples // 2]),
         ])
         self.test_dataset = paddle.io.TensorDataset([
             paddle.randn([self.num_samples // 2, 10]),
-            paddle.randint(0, 2, [self.num_samples // 2])
+            paddle.randint(0, 2, [self.num_samples // 2]),
         ])
 
     def train_dataloader(self):
@@ -92,6 +94,7 @@ class RandomDataModule(ocean.DataModule):
 # Tests
 # ====================================================================
 
+
 def make_train_loader(n=50, bs=8):
     ds = paddle.io.TensorDataset([paddle.randn([n, 10]), paddle.randint(0, 2, [n])])
     return paddle.io.DataLoader(ds, batch_size=bs)
@@ -103,6 +106,7 @@ def make_val_loader(n=20, bs=8):
 
 
 # --- Model basic tests ---
+
 
 def test_model_lightning_mode():
     model = LinearModel()
@@ -172,6 +176,7 @@ def test_model_forward_keras():
 
 # --- Trainer tests ---
 
+
 def test_trainer_validate():
     model = LinearModel()
     trainer = ocean.Trainer(verbose=0)
@@ -195,6 +200,7 @@ def test_trainer_predict():
         def __init__(self):
             super().__init__()
             self.linear = paddle.nn.Linear(10, 2)
+
         def forward(self, x):
             return self.linear(x)
 
@@ -215,16 +221,17 @@ def test_trainer_accumulate_grad():
 
 # --- DataModule tests ---
 
+
 def test_datamodule():
     dm = RandomDataModule(num_samples=40, batch_size=8)
     dm.setup("fit")
     train_loader = dm.train_dataloader()
-    val_loader = dm.val_dataloader()
     batch = next(iter(train_loader))
     assert len(batch) == 2
 
 
 # --- Callback tests ---
+
 
 def test_early_stopping():
     model = LinearModel()
@@ -260,6 +267,7 @@ def test_callback_base():
 
 
 # --- Logger tests ---
+
 
 def test_csv_logger():
     model = LinearModel()
@@ -306,6 +314,7 @@ def test_logger_base():
 
 
 # --- Gear tests ---
+
 
 def test_gear_basic():
     gear = ocean.Gear(accelerator="cpu")
@@ -361,6 +370,7 @@ def test_gear_backward():
 
 # --- Accelerator tests ---
 
+
 def test_cpu_accelerator():
     accel = ocean.CPUAccelerator()
     device = accel.setup_device()
@@ -374,6 +384,7 @@ def test_accelerator_base():
 
 
 # --- Model checkpoint save/load ---
+
 
 def test_model_save_load_checkpoint():
     model = LinearModel()
@@ -389,6 +400,7 @@ def test_model_save_load_checkpoint():
 
 
 # --- DataModule with Trainer ---
+
 
 def test_datamodule_with_trainer():
     model = LinearModel()
@@ -409,6 +421,7 @@ def test_datamodule_with_trainer():
 
 # --- Multiple epochs with validation ---
 
+
 def test_multi_epoch_validation():
     model = LinearModel()
     trainer = ocean.Trainer(max_epochs=3, check_val_every_n_epoch=1, verbose=0)
@@ -417,6 +430,7 @@ def test_multi_epoch_validation():
 
 
 # --- Keras mode compile and evaluate ---
+
 
 def test_keras_evaluate():
     net = paddle.nn.Sequential(paddle.nn.Linear(10, 2))
@@ -432,6 +446,7 @@ def test_keras_evaluate():
 
 # --- Fast dev run ---
 
+
 def test_fast_dev_run():
     model = LinearModel()
     trainer = ocean.Trainer(fast_dev_run=2, verbose=0)
@@ -440,6 +455,7 @@ def test_fast_dev_run():
 
 
 # --- import test ---
+
 
 def test_imports():
     assert hasattr(ocean, "Model")
@@ -459,9 +475,11 @@ def test_imports():
 
 # --- Run all ---
 
+
 def _has_visualdl():
     try:
         import visualdl  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -519,9 +537,10 @@ if __name__ == "__main__":
             print(f"✗ {name}: {e}")
             failed += 1
             import traceback
+
             traceback.print_exc()
 
-    print(f"\n{'='*40}")
+    print(f"\n{'=' * 40}")
     print(f"Results: {passed} passed, {failed} failed, {len(tests)} total")
     if failed > 0:
         sys.exit(1)

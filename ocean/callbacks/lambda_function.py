@@ -100,11 +100,15 @@ class LambdaCallback(Callback):
         if self._on_validation_end:
             self._on_validation_end(trainer, model)
 
-    def on_validation_batch_start(self, trainer: Any, model: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+    def on_validation_batch_start(
+        self, trainer: Any, model: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0
+    ) -> None:
         if self._on_validation_batch_start:
             self._on_validation_batch_start(trainer, model, batch, batch_idx, dataloader_idx)
 
-    def on_validation_batch_end(self, trainer: Any, model: Any, outputs: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+    def on_validation_batch_end(
+        self, trainer: Any, model: Any, outputs: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0
+    ) -> None:
         if self._on_validation_batch_end:
             self._on_validation_batch_end(trainer, model, outputs, batch, batch_idx, dataloader_idx)
 

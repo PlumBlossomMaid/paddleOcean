@@ -18,6 +18,7 @@ from ocean.loggers.csv_logs import CSVLogger
 # Data Connector
 # ====================================================================
 
+
 class _DataConnector:
     """Manages data sources: dataloaders and DataModules."""
 
@@ -63,6 +64,7 @@ class _DataConnector:
 # ====================================================================
 # Logger Connector
 # ====================================================================
+
 
 class _LoggerConnector:
     """Manages logging: metric tracking, result collection, logger dispatch."""
@@ -142,6 +144,7 @@ class _LoggerConnector:
 # Callback Connector
 # ====================================================================
 
+
 class _CallbackConnector:
     """Manages callbacks: attaches default callbacks, manages callback state."""
 
@@ -172,6 +175,7 @@ class _CallbackConnector:
 # ====================================================================
 # Checkpoint Connector
 # ====================================================================
+
 
 class _CheckpointConnector:
     """Manages checkpoint loading/resuming."""
@@ -216,6 +220,7 @@ class _CheckpointConnector:
 # Signal Connector
 # ====================================================================
 
+
 class _SignalConnector:
     """Manages signal handlers for graceful shutdown."""
 
@@ -233,6 +238,7 @@ class _SignalConnector:
 # ====================================================================
 # Accelerator Connector
 # ====================================================================
+
 
 class _AcceleratorConnector:
     """Resolves accelerator, strategy, devices, and precision.
@@ -264,6 +270,7 @@ class _AcceleratorConnector:
     @staticmethod
     def _resolve_accelerator(accelerator: str) -> Any:
         from ocean.accelerators import CPUAccelerator, CUDAAccelerator, IPUAccelerator, ROCmAccelerator, XPUAccelerator
+
         if accelerator in ("auto", "cpu"):
             if CUDAAccelerator.is_available():
                 return CUDAAccelerator()
@@ -288,8 +295,10 @@ class _AcceleratorConnector:
         if strategy == "auto":
             try:
                 import paddle.distributed as dist
+
                 if dist.is_initialized():
                     from ocean.strategies.ddp import DDPStrategy
+
                     return DDPStrategy()
             except Exception:
                 pass
@@ -297,13 +306,16 @@ class _AcceleratorConnector:
 
         if strategy in ("ddp", "ddp_spawn"):
             from ocean.strategies.ddp import DDPStrategy
+
             return DDPStrategy()
 
         if strategy == "fleet":
             from ocean.strategies.ddp import DDPStrategy
+
             ds = DDPStrategy()
             try:
                 import ocean.distributed as odist
+
                 odist.fleet.init(is_collective=True)
             except Exception:
                 pass
@@ -314,6 +326,7 @@ class _AcceleratorConnector:
 
         # If it's already a Strategy instance, use it directly
         from ocean.strategies import Strategy
+
         if isinstance(strategy, Strategy):
             return strategy
 
@@ -322,12 +335,15 @@ class _AcceleratorConnector:
     @staticmethod
     def _resolve_precision(precision: str) -> Any:
         from ocean.plugins import MixedPrecision, Precision
+
         if precision in ("16", "16-mixed", "bf16", "bf16-mixed"):
             return MixedPrecision(precision)
         if precision == "16-true":
             from ocean.plugins.precision import HalfPrecision
+
             return HalfPrecision()
         if precision in ("64", "64-true"):
             from ocean.plugins.precision import DoublePrecision
+
             return DoublePrecision()
         return Precision(precision)

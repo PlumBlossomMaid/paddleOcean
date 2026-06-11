@@ -1,6 +1,5 @@
 """Consolidate sharded checkpoints into a single file."""
 
-
 import paddle
 
 

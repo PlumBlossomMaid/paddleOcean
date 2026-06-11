@@ -49,6 +49,7 @@ class WeightAveraging(Callback):
 
     def _copy_model(self, model: Any) -> Any:
         import copy
+
         return copy.deepcopy(model)
 
     def state_dict(self) -> dict:

@@ -80,7 +80,8 @@ class FSDPStrategy(ParallelStrategy):
     def save_checkpoint(self, checkpoint: dict, filepath: str) -> None:
         try:
             paddle.distributed.sharding.save_group_sharded_model(
-                self._model, filepath,
+                self._model,
+                filepath,
             )
         except Exception:
             if self.is_global_zero:

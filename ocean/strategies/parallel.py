@@ -45,4 +45,5 @@ class ParallelStrategy(Strategy):
 
     def block_backward_sync(self):
         import contextlib
+
         return contextlib.nullcontext()

@@ -25,10 +25,12 @@ class ModelRegistry:
         Args:
             name: Name to register under (defaults to class name).
         """
+
         def decorator(model_cls: type) -> type:
             key = name or model_cls.__name__
             cls._registry[key] = model_cls
             return model_cls
+
         return decorator
 
     @classmethod

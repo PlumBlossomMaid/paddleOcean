@@ -25,6 +25,7 @@ import paddle
 # Initialization and Environment
 # ====================================================================
 
+
 def is_available() -> bool:
     """Check if distributed environment is available."""
     return paddle.distributed.is_available()
@@ -64,6 +65,7 @@ def ParallelEnv() -> Any:
 # Process Group Management
 # ====================================================================
 
+
 def new_group(ranks: list[int]) -> Any:
     """Create a new distributed communication group."""
     return paddle.distributed.new_group(ranks)
@@ -82,6 +84,7 @@ def destroy_process_group(group: Optional[Any] = None) -> None:
 # ====================================================================
 # Collective Communication Operations
 # ====================================================================
+
 
 def all_reduce(tensor: Any, op: str = "mean") -> Any:
     """All-reduce tensor across all processes.
@@ -212,6 +215,7 @@ def wait(tensor: Any, group: Any = None) -> None:
 # Stream Collective Communication (Advanced)
 # ====================================================================
 
+
 class stream:
     """Stream collective communication operations.
 
@@ -284,6 +288,7 @@ class stream:
 # Distributed DataParallel
 # ====================================================================
 
+
 def DataParallel(
     model: paddle.nn.Layer,
     find_unused_parameters: bool = False,
@@ -323,6 +328,7 @@ def parallelize(model: Any, optimizer: Any, strategy: Any = None) -> tuple:
 # Fleet API
 # ====================================================================
 
+
 class fleet:
     """Fleet API for large-scale distributed training.
 
@@ -357,6 +363,7 @@ class fleet:
 # Launch Utilities
 # ====================================================================
 
+
 def spawn(fn: Callable, nprocs: int = 1, **kwargs: Any) -> Any:
     """Spawn distributed processes.
 
@@ -384,6 +391,7 @@ def launch(fn: Callable, **kwargs: Any) -> Any:
 # ====================================================================
 # Sharding
 # ====================================================================
+
 
 def shard_tensor(
     tensor: Any,
@@ -438,6 +446,7 @@ def to_static(model: Any) -> Any:
 # Group Sharding (ZeRO-style)
 # ====================================================================
 
+
 def group_sharded_parallel(
     model: paddle.nn.Layer,
     optimizer: Any,
@@ -456,7 +465,10 @@ def group_sharded_parallel(
         Tuple of (sharded_model, sharded_optimizer, sharded_scaler).
     """
     return paddle.distributed.sharding.group_sharded_parallel(
-        model, optimizer, level=level, scaler=scaler,
+        model,
+        optimizer,
+        level=level,
+        scaler=scaler,
     )
 
 
@@ -467,13 +479,16 @@ def save_group_sharded_model(
 ) -> None:
     """Save model state from group sharded parallel training."""
     paddle.distributed.sharding.save_group_sharded_model(
-        model, output_path, optimizer=optimizer,
+        model,
+        output_path,
+        optimizer=optimizer,
     )
 
 
 # ====================================================================
 # State Dict Save/Load (Distributed Checkpoint)
 # ====================================================================
+
 
 def save_state_dict(
     state_dict: dict,
@@ -497,6 +512,7 @@ def load_state_dict(
 # ====================================================================
 # RPC (Remote Procedure Call)
 # ====================================================================
+
 
 class rpc:
     """RPC for distributed communication.
@@ -547,6 +563,7 @@ class rpc:
 # Process Mesh
 # ====================================================================
 
+
 def set_mesh(mesh: Any) -> None:
     """Set global ProcessMesh."""
     paddle.distributed.set_mesh(mesh)
@@ -560,6 +577,7 @@ def get_mesh() -> Any:
 # ====================================================================
 # DTensor utilities
 # ====================================================================
+
 
 def dtensor_from_fn(fn: Callable, dist_attr: Any, *args: Any, **kwargs: Any) -> Any:
     """Create a DTensor from a paddle API function with distributed attributes."""

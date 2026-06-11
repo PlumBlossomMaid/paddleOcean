@@ -1,6 +1,5 @@
 """Memory utility functions."""
 
-
 import paddle
 
 

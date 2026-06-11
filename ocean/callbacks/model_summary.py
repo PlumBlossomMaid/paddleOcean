@@ -21,11 +21,11 @@ class ModelSummary(Callback):
         if not getattr(trainer, "is_global_zero", True):
             return
 
-        print(f"\n  {'='*60}")
+        print(f"\n  {'=' * 60}")
         print(f"  {'Model Summary':^60}")
-        print(f"  {'='*60}")
+        print(f"  {'=' * 60}")
         self._print_model_summary(model)
-        print(f"  {'='*60}\n")
+        print(f"  {'=' * 60}\n")
 
     def _print_model_summary(self, model: Any) -> None:
         total_params = 0
@@ -45,7 +45,7 @@ class ModelSummary(Callback):
         for name, cls_name, num in layers:
             print(f"  {name:30s} {cls_name:25s} {num:>8,} params")
 
-        print(f"  {'─'*60}")
+        print(f"  {'─' * 60}")
         print(f"  {'Total params':30s} {total_params:>28,}")
         print(f"  {'Trainable params':30s} {trainable_params:>28,}")
         print(f"  {'Non-trainable params':30s} {total_params - trainable_params:>28,}")

@@ -52,6 +52,7 @@ class WandbLogger(Logger):
     def _create_experiment(self) -> Any:
         try:
             import wandb
+
             # Check if wandb.run already exists
             run = wandb.run
             if run is not None:
@@ -62,11 +63,15 @@ class WandbLogger(Logger):
             init_kwargs.update(self._kwargs)
             return wandb.init(**init_kwargs)
         except ImportError:
+
             class _DummyExperiment:
                 def log(self, *args, **kwargs): ...
-                def config(self): return type("Config", (), {"update": lambda *a, **kw: None})()
+                def config(self):
+                    return type("Config", (), {"update": lambda *a, **kw: None})()
+
                 def finish(self): ...
                 def watch(self, *args, **kwargs): ...
+
             return _DummyExperiment()
 
     @property
@@ -107,6 +112,7 @@ class WandbLogger(Logger):
     def finalize(self, status: str) -> None:
         try:
             import wandb
+
             if wandb.run is not None:
                 wandb.finish(exit_code=0 if status == "success" else 1)
         except Exception:

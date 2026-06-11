@@ -18,6 +18,7 @@ class Precision:
 
     def forward_context(self) -> Any:
         import contextlib
+
         return contextlib.nullcontext()
 
     def convert_input(self, data: Any) -> Any:
@@ -29,6 +30,7 @@ class Precision:
     def pre_backward(self, tensor: paddle.Tensor, module: Any) -> None: ...
     def backward(self, tensor: paddle.Tensor, model: Any, *args: Any, **kwargs: Any) -> None:
         tensor.backward(*args, **kwargs)
+
     def post_backward(self, tensor: paddle.Tensor, module: Any) -> paddle.Tensor:
         return tensor.detach()
 

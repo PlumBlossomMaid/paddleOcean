@@ -58,7 +58,6 @@ class Tuner:
         # Run test
         losses = []
         best_loss = float("inf")
-        prev_loss = float("inf")
 
         model.train()
         train_loader = train_dataloaders or (datamodule.train_dataloader() if datamodule else None)
@@ -80,7 +79,9 @@ class Tuner:
             batch = trainer._move_to_device(batch, device)
             optimizer.clear_grad()
             result = model.training_step(batch, batch_idx)
-            loss = result["loss"] if isinstance(result, dict) else (result if isinstance(result, paddle.Tensor) else None)
+            loss = (
+                result["loss"] if isinstance(result, dict) else (result if isinstance(result, paddle.Tensor) else None)
+            )
 
             if loss is not None:
                 loss_val = float(loss.item())

@@ -72,11 +72,13 @@ def init_optimizers_and_lr_schedulers(model: Any) -> tuple[list, list]:
             optimizers = [opt]
         sch = result.get("lr_scheduler")
         if sch is not None:
-            lr_schedulers = [{
-                "scheduler": sch,
-                "interval": result.get("interval", "epoch"),
-                "frequency": result.get("frequency", 1),
-                "monitor": result.get("monitor"),
-            }]
+            lr_schedulers = [
+                {
+                    "scheduler": sch,
+                    "interval": result.get("interval", "epoch"),
+                    "frequency": result.get("frequency", 1),
+                    "monitor": result.get("monitor"),
+                }
+            ]
 
     return optimizers, lr_schedulers

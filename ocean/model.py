@@ -97,10 +97,7 @@ class Model(nn.Layer):
         loss_weights: Optional[list[float]] = None,
     ) -> None:
         if self.__model__ is None:
-            raise ValueError(
-                "compile() requires __model__. "
-                "Use ocean.Model(__model__=your_network) for Keras mode."
-            )
+            raise ValueError("compile() requires __model__. Use ocean.Model(__model__=your_network) for Keras mode.")
         self._optimizer = optimizer
         self._loss_fns = [loss] if callable(loss) else (list(loss) if loss is not None else [])
         self._loss_weights = loss_weights
@@ -163,10 +160,13 @@ class Model(nn.Layer):
     def on_before_optimizer_step(self, optimizer: paddle.optimizer.Optimizer) -> None: ...
     def on_validation_model_eval(self) -> None:
         self.eval()
+
     def on_validation_model_train(self) -> None:
         self.train()
+
     def on_test_model_eval(self) -> None:
         self.eval()
+
     def on_test_model_train(self) -> None:
         self.train()
 
@@ -261,18 +261,22 @@ class Model(nn.Layer):
         trainer = self.__trainer__
         if trainer is None:
             from ocean.trainer import Trainer
+
             trainer = Trainer(max_epochs=epochs)
             self.__trainer__ = trainer
-        trainer.fit(self, train_dataloaders=train_data, val_dataloaders=val_data,
-                    datamodule=datamodule, ckpt_path=ckpt_path)
+        trainer.fit(
+            self, train_dataloaders=train_data, val_dataloaders=val_data, datamodule=datamodule, ckpt_path=ckpt_path
+        )
 
     def evaluate(self, eval_data: Optional[Any] = None, datamodule: Optional[Any] = None) -> list[dict[str, float]]:
         from ocean.trainer import Trainer
+
         trainer = self.__trainer__ or Trainer()
         return trainer.validate(self, dataloaders=eval_data, datamodule=datamodule)
 
     def predict(self, test_data: Optional[Any] = None, datamodule: Optional[Any] = None) -> list[Any]:
         from ocean.trainer import Trainer
+
         trainer = self.__trainer__ or Trainer()
         return trainer.predict(self, dataloaders=test_data, datamodule=datamodule)
 
@@ -316,7 +320,9 @@ class Model(nn.Layer):
         for i, metric in enumerate(self._metrics):
             if hasattr(metric, "accumulate"):
                 val = metric.accumulate()
-                results[self._metrics_name_cache[i + 1 if self._loss_fns else i]] = float(val.item()) if hasattr(val, "item") else float(val)
+                results[self._metrics_name_cache[i + 1 if self._loss_fns else i]] = (
+                    float(val.item()) if hasattr(val, "item") else float(val)
+                )
             if hasattr(metric, "reset"):
                 metric.reset()
         return results

@@ -19,6 +19,7 @@ class RichProgressBar(ProgressBar):
     def on_train_epoch_start(self, trainer: Any, model: Any) -> None:
         try:
             from rich.progress import Progress
+
             self._progress = Progress()
             self._progress.start()
             total = self._get_total(trainer, "train")

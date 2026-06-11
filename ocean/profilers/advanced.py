@@ -54,6 +54,7 @@ class AdvancedProfiler:
             try:
                 self._profiler.stop()
                 import os
+
                 path = os.path.join(self.dirpath, self.filename)
                 self._profiler.export(path=path, format="json")
             except Exception:
@@ -68,7 +69,7 @@ class AdvancedProfiler:
             if times:
                 avg = sum(times) / len(times)
                 total = sum(times)
-                lines.append(f"  {name}: {len(times)} calls, avg {avg*1000:.3f}ms, total {total*1000:.3f}ms")
+                lines.append(f"  {name}: {len(times)} calls, avg {avg * 1000:.3f}ms, total {total * 1000:.3f}ms")
         return "\n".join(lines)
 
     def teardown(self) -> None:

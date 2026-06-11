@@ -1,6 +1,5 @@
 """Double precision plugin - converts model to float64."""
 
-
 import paddle
 
 from ocean.plugins.precision.precision import Precision

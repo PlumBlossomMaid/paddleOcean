@@ -42,10 +42,12 @@ class TensorBoardLogger(Logger):
     def _detect_backend() -> str:
         try:
             from tensorboardX import SummaryWriter
+
             return "tensorboardX"
         except ImportError:
             try:
                 from visualdl import LogWriter
+
                 return "visualdl"
             except ImportError:
                 return "none"
@@ -77,15 +79,19 @@ class TensorBoardLogger(Logger):
         os.makedirs(self.log_dir, exist_ok=True)
         if self._backend == "tensorboardX":
             from tensorboardX import SummaryWriter
+
             return SummaryWriter(logdir=self.log_dir)
         elif self._backend == "visualdl":
             from visualdl import LogWriter
+
             return LogWriter(logdir=self.log_dir)
         else:
+
             class _DummyWriter:
                 def add_scalar(self, *args, **kwargs): ...
                 def add_histogram(self, *args, **kwargs): ...
                 def close(self): ...
+
             return _DummyWriter()
 
     def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
@@ -98,6 +104,7 @@ class TensorBoardLogger(Logger):
     def log_hyperparams(self, params: dict[str, Any]) -> None:
         try:
             import yaml
+
             path = os.path.join(self.log_dir, "hparams.yaml")
             with open(path, "w") as f:
                 yaml.dump(params, f)

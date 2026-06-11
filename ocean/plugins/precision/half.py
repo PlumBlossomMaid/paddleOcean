@@ -20,4 +20,5 @@ class HalfPrecision(Precision):
 
     def forward_context(self) -> Any:
         import contextlib
+
         return contextlib.nullcontext()

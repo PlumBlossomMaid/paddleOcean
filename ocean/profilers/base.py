@@ -25,7 +25,7 @@ class Profiler:
             if times:
                 avg = sum(times) / len(times)
                 total = sum(times)
-                lines.append(f"  {name}: {len(times)} calls, avg {avg*1000:.2f}ms, total {total*1000:.2f}ms")
+                lines.append(f"  {name}: {len(times)} calls, avg {avg * 1000:.2f}ms, total {total * 1000:.2f}ms")
         return "\n".join(lines)
 
     def teardown(self) -> None:

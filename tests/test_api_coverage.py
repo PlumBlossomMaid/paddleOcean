@@ -3,41 +3,91 @@
 This test ensures ocean serves as a complete drop-in replacement for paddle.
 """
 
-
 import paddle
 
 # APIs that intentionally differ (documented differences)
 INTENTIONAL_DIFFERENCES = {
     # Ocean's own framework additions
-    "Model", "Trainer", "DataModule", "Gear",
-    "Callback", "ModelCheckpoint", "EarlyStopping",
-    "CSVLogger", "VisualDLLogger",
-    "Strategy", "SingleDeviceStrategy",
+    "Model",
+    "Trainer",
+    "DataModule",
+    "Gear",
+    "Callback",
+    "ModelCheckpoint",
+    "EarlyStopping",
+    "CSVLogger",
+    "VisualDLLogger",
+    "Strategy",
+    "SingleDeviceStrategy",
     # Version info
-    "Version", "PADDLE_VERSION", "version_gte", "version_lt",
-    "repeat_interleave", "index_add", "scatter", "scatter_nd",
-    "take_along_axis", "put_along_axis", "masked_fill", "masked_select",
-    "sort", "argsort", "unique", "nonzero",
-    "logsumexp", "lgamma",
+    "Version",
+    "PADDLE_VERSION",
+    "version_gte",
+    "version_lt",
+    "repeat_interleave",
+    "index_add",
+    "scatter",
+    "scatter_nd",
+    "take_along_axis",
+    "put_along_axis",
+    "masked_fill",
+    "masked_select",
+    "sort",
+    "argsort",
+    "unique",
+    "nonzero",
+    "logsumexp",
+    "lgamma",
     # Internals
-    "_Loop", "_FitLoop", "_TrainingEpochLoop", "_EvaluationLoop", "_PredictionLoop",
-    "_call_callback_hooks", "_call_lightning_module_hook",
-    "_DataConnector", "_LoggerConnector", "_CallbackConnector", "_CheckpointConnector",
+    "_Loop",
+    "_FitLoop",
+    "_TrainingEpochLoop",
+    "_EvaluationLoop",
+    "_PredictionLoop",
+    "_call_callback_hooks",
+    "_call_lightning_module_hook",
+    "_DataConnector",
+    "_LoggerConnector",
+    "_CallbackConnector",
+    "_CheckpointConnector",
     # Trainer
-    "TrainerState", "TrainerStatus", "TrainerFn", "RunningStage",
+    "TrainerState",
+    "TrainerStatus",
+    "TrainerFn",
+    "RunningStage",
     "Precision",
-    "OceanOptimizer", "init_optimizers_and_lr_schedulers",
+    "OceanOptimizer",
+    "init_optimizers_and_lr_schedulers",
     "load_from_checkpoint",
-    "ModelHooks", "DataHooks", "HyperparametersMixin",
-    "STEP_OUTPUT", "EVALUATE_OUTPUT", "PREDICT_OUTPUT",
+    "ModelHooks",
+    "DataHooks",
+    "HyperparametersMixin",
+    "STEP_OUTPUT",
+    "EVALUATE_OUTPUT",
+    "PREDICT_OUTPUT",
 }
 
 # Known paddle internal APIs that shouldn't be proxied
 PADDLE_INTERNAL = {
-    "_C", "_C_ops", "_C_ops_", "_legacy_C_ops", "_pir_ops", "_ops",
-    "_classes", "_typing", "_paddle_docs",
-    "api_tracer", "apy", "base", "cinn_config", "cost_model",
-    "framework", "libs", "pir", "proto", "tensorrt",
+    "_C",
+    "_C_ops",
+    "_C_ops_",
+    "_legacy_C_ops",
+    "_pir_ops",
+    "_ops",
+    "_classes",
+    "_typing",
+    "_paddle_docs",
+    "api_tracer",
+    "apy",
+    "base",
+    "cinn_config",
+    "cost_model",
+    "framework",
+    "libs",
+    "pir",
+    "proto",
+    "tensorrt",
 }
 
 
@@ -119,10 +169,23 @@ def test_ocean_nn_functional():
     """Verify functional APIs are accessible."""
     import ocean
 
-    funcs = ["relu", "sigmoid", "tanh", "softmax", "cross_entropy",
-             "mse_loss", "binary_cross_entropy", "dropout",
-             "batch_norm", "linear", "conv2d", "max_pool2d",
-             "one_hot", "pad", "interpolate"]
+    funcs = [
+        "relu",
+        "sigmoid",
+        "tanh",
+        "softmax",
+        "cross_entropy",
+        "mse_loss",
+        "binary_cross_entropy",
+        "dropout",
+        "batch_norm",
+        "linear",
+        "conv2d",
+        "max_pool2d",
+        "one_hot",
+        "pad",
+        "interpolate",
+    ]
 
     for name in funcs:
         fn = getattr(ocean.nn.functional, name, None)
@@ -133,7 +196,6 @@ def test_ocean_linalg():
     """Verify linear algebra ops."""
     import ocean
 
-    x = ocean.randn([3, 3])
     ops = ["matmul", "norm", "det", "inv", "svd", "qr", "cholesky", "eig", "lstsq", "cross"]
     for name in ops:
         fn = getattr(ocean.linalg, name, None)
@@ -229,7 +291,7 @@ def test_no_paddle_import():
     import ocean
 
     # Verify we can use ocean without having imported paddle ourselves
-    assert "paddle" not in dir() or hasattr(ocean, 'randn')
+    assert "paddle" not in dir() or hasattr(ocean, "randn")
     x = ocean.randn([3, 4])
     assert x.shape == [3, 4]
 

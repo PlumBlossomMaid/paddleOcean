@@ -5,9 +5,6 @@ from typing import Any, Optional, Union
 
 import paddle
 
-from ocean.loops.evaluation_loop import _EvaluationLoop
-from ocean.loops.fit_loop import _FitLoop
-from ocean.loops.prediction_loop import _PredictionLoop
 from ocean.strategies import SingleDeviceStrategy
 from ocean.trainer.call import (
     _call_and_handle_interrupt,
@@ -164,11 +161,19 @@ class Trainer:
         self._signal_connector = _SignalConnector(self)
 
         # === Init connectors ===
-        self._data_connector.on_trainer_init(val_check_interval, reload_dataloaders_every_n_epochs, check_val_every_n_epoch)
+        self._data_connector.on_trainer_init(
+            val_check_interval, reload_dataloaders_every_n_epochs, check_val_every_n_epoch
+        )
         self._logger_connector.on_trainer_init(logger, log_every_n_steps)
-        self._callback_connector.on_trainer_init(callbacks, enable_checkpointing, enable_progress_bar, self.default_root_dir)
+        self._callback_connector.on_trainer_init(
+            callbacks, enable_checkpointing, enable_progress_bar, self.default_root_dir
+        )
 
         # === Loops ===
+        from ocean.loops.evaluation_loop import _EvaluationLoop
+        from ocean.loops.fit_loop import _FitLoop
+        from ocean.loops.prediction_loop import _PredictionLoop
+
         self.fit_loop = _FitLoop(self, min_epochs=self.min_epochs, max_epochs=self.max_epochs)
         self.validate_loop = _EvaluationLoop(self, TrainerFn.VALIDATING, RunningStage.VALIDATING, verbose=verbose)
         self.test_loop = _EvaluationLoop(self, TrainerFn.TESTING, RunningStage.TESTING, verbose=verbose)
@@ -259,7 +264,9 @@ class Trainer:
     ) -> None:
         self.state.fn = TrainerFn.FITTING
         self.state.status = TrainerStatus.RUNNING
-        _call_and_handle_interrupt(self, self._fit_impl, model, train_dataloaders, val_dataloaders, datamodule, ckpt_path)
+        _call_and_handle_interrupt(
+            self, self._fit_impl, model, train_dataloaders, val_dataloaders, datamodule, ckpt_path
+        )
         self.state.status = TrainerStatus.FINISHED
 
     def _fit_impl(
@@ -421,9 +428,18 @@ class Trainer:
     # Logging
     # ====================================================================
 
-    def _log_metric(self, model: Any, name: str, value: Any, prog_bar: bool = False, logger: bool = True,
-                    on_step: Any = None, on_epoch: Any = None, reduce_fx: str = "mean",
-                    batch_size: Optional[int] = None) -> None:
+    def _log_metric(
+        self,
+        model: Any,
+        name: str,
+        value: Any,
+        prog_bar: bool = False,
+        logger: bool = True,
+        on_step: Any = None,
+        on_epoch: Any = None,
+        reduce_fx: str = "mean",
+        batch_size: Optional[int] = None,
+    ) -> None:
         if hasattr(value, "item"):
             value = value.item()
         self._log_metrics_buffer[name].append(value)
@@ -453,6 +469,7 @@ class Trainer:
         if model._optimizer is not None:
             return model._optimizer
         from ocean.core.optimizer import init_optimizers_and_lr_schedulers
+
         opts, _ = init_optimizers_and_lr_schedulers(model)
         return opts[0] if opts else None
 

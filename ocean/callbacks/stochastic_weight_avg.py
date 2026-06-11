@@ -36,7 +36,9 @@ class StochasticWeightAveraging(Callback):
 
     def on_train_epoch_end(self, trainer: Any, model: Any) -> None:
         num_epochs = trainer.max_epochs if trainer.max_epochs else 1
-        start_epoch = int(self.swa_epoch_start * num_epochs) if isinstance(self.swa_epoch_start, float) else self.swa_epoch_start
+        start_epoch = (
+            int(self.swa_epoch_start * num_epochs) if isinstance(self.swa_epoch_start, float) else self.swa_epoch_start
+        )
 
         if trainer.current_epoch >= start_epoch:
             if self._average_model is None:
@@ -52,6 +54,7 @@ class StochasticWeightAveraging(Callback):
 
     def _copy_model(self, model: Any) -> Any:
         import copy
+
         return copy.deepcopy(model)
 
     def _update_average(self, model: Any) -> None:

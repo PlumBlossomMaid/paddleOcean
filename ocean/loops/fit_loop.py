@@ -61,7 +61,11 @@ class _FitLoop(_Loop):
 
                 # Training step
                 result = model.training_step(batch, batch_idx)
-                loss = result["loss"] if isinstance(result, dict) else (result if isinstance(result, paddle.Tensor) else None)
+                loss = (
+                    result["loss"]
+                    if isinstance(result, dict)
+                    else (result if isinstance(result, paddle.Tensor) else None)
+                )
 
                 if loss is not None:
                     model.on_before_backward(loss)
@@ -82,7 +86,11 @@ class _FitLoop(_Loop):
                 model.on_train_batch_end(result, batch, batch_idx)
 
                 # Logging
-                if trainer.global_step > 0 and trainer.global_step % trainer.log_every_n_steps == 0 and trainer.verbose > 0:
+                if (
+                    trainer.global_step > 0
+                    and trainer.global_step % trainer.log_every_n_steps == 0
+                    and trainer.verbose > 0
+                ):
                     trainer._print(f"  train step {trainer.global_step}")
 
                 if 0 < trainer.max_steps <= trainer.global_step:
@@ -129,7 +137,7 @@ class _FitLoop(_Loop):
         _call_lightning_module_hook(trainer, "on_validation_epoch_start")
 
         device = trainer._resolve_device()
-        for dataloader in (val_loader if isinstance(val_loader, (list, tuple)) else [val_loader]):
+        for dataloader in val_loader if isinstance(val_loader, (list, tuple)) else [val_loader]:
             with paddle.no_grad():
                 for batch_idx, batch in enumerate(dataloader):
                     if trainer._should_limit_batches(batch_idx, "val"):

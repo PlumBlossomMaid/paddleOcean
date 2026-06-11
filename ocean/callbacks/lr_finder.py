@@ -74,7 +74,7 @@ class LRFinder(Callback):
             if loss_val > self.early_stop_threshold * self._best_loss and len(self.results) > 5:
                 # Suggest LR as 1/10 of the point of steepest descent
                 if len(self.results) >= 3:
-                    grads = [self.results[i+1][1] - self.results[i][1] for i in range(len(self.results)-1)]
+                    grads = [self.results[i + 1][1] - self.results[i][1] for i in range(len(self.results) - 1)]
                     steepest = grads.index(min(grads))
                     self.optimal_lr = self.results[steepest][0] * 0.1
                 else:

@@ -24,7 +24,9 @@ class Closure(AbstractClosure[OutputResult]):
         if self.zero_grad_fn is not None:
             self.zero_grad_fn()
         result = self.step_fn(*args, **kwargs)
-        loss = result.loss if isinstance(result, OutputResult) else (result if isinstance(result, paddle.Tensor) else None)
+        loss = (
+            result.loss if isinstance(result, OutputResult) else (result if isinstance(result, paddle.Tensor) else None)
+        )
         if loss is not None and self.backward_fn is not None:
             self.backward_fn(loss)
         return result if isinstance(result, OutputResult) else OutputResult(loss=loss)

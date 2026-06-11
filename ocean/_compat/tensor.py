@@ -14,6 +14,7 @@ from ocean._compat.version import version_gte
 # Creation ops
 # ====================================================================
 
+
 def tensor(data: Any, dtype: Any = None, place: Any = None) -> paddle.Tensor:
     """Create a tensor (paddle.to_tensor wrapper for compatibility)."""
     return paddle.to_tensor(data, dtype=dtype, place=place)
@@ -31,6 +32,7 @@ def as_tensor(data: Any, dtype: Any = None, place: Any = None) -> paddle.Tensor:
 # ====================================================================
 # Indexing / scattering
 # ====================================================================
+
 
 def repeat_interleave(
     x: paddle.Tensor,
@@ -169,7 +171,6 @@ def put_along_axis(
     if hasattr(paddle, "put_along_axis"):
         return paddle.put_along_axis(x, index, value, axis, reduce)
     result = x.clone()
-    gathered = paddle.gather(x, index, axis=axis)
     result = paddle.scatter(result, index, value)
     return result
 
@@ -177,6 +178,7 @@ def put_along_axis(
 # ====================================================================
 # Masking
 # ====================================================================
+
 
 def masked_fill(x: paddle.Tensor, mask: paddle.Tensor, value: Any) -> paddle.Tensor:
     """Fill elements with value where mask is True.
@@ -201,6 +203,7 @@ def masked_select(x: paddle.Tensor, mask: paddle.Tensor) -> paddle.Tensor:
 # ====================================================================
 # Sorting / Searching
 # ====================================================================
+
 
 def sort(
     x: paddle.Tensor,
@@ -238,6 +241,7 @@ def argsort(
 # ====================================================================
 # Unique / Nonzero
 # ====================================================================
+
 
 def unique(
     x: paddle.Tensor,
@@ -291,6 +295,7 @@ def nonzero(x: paddle.Tensor, as_tuple: bool = False) -> Any:
 # Math / Special
 # ====================================================================
 
+
 def logsumexp(x: paddle.Tensor, axis: Optional[int] = None, keepdim: bool = False) -> paddle.Tensor:
     """Logarithm of sum of exponentials.
 
@@ -319,6 +324,7 @@ def lgamma(x: paddle.Tensor) -> paddle.Tensor:
 # ====================================================================
 # NN compatibility
 # ====================================================================
+
 
 def pad(
     x: paddle.Tensor,

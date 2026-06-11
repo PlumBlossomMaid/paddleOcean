@@ -45,8 +45,9 @@ class TQDMProgressBar(ProgressBar):
     def on_train_epoch_start(self, trainer: Any, model: Any) -> None:
         try:
             from tqdm import tqdm
+
             total = self._get_total(trainer, "train")
-            self._tqdm = tqdm(total=total, desc=f"Epoch {trainer.current_epoch+1}", leave=True, unit="batch")
+            self._tqdm = tqdm(total=total, desc=f"Epoch {trainer.current_epoch + 1}", leave=True, unit="batch")
         except ImportError:
             self._tqdm = None
 

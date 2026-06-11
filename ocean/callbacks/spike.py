@@ -44,5 +44,7 @@ class SpikeDetection(Callback):
                 mean = sum(self._loss_history) / len(self._loss_history)
                 if loss_val > mean * self.threshold_multiplier:
                     if self.verbose:
-                        print(f"Spike detected: loss={loss_val:.4f} (mean={mean:.4f}, "
-                              f"threshold={mean*self.threshold_multiplier:.4f})")
+                        print(
+                            f"Spike detected: loss={loss_val:.4f} (mean={mean:.4f}, "
+                            f"threshold={mean * self.threshold_multiplier:.4f})"
+                        )

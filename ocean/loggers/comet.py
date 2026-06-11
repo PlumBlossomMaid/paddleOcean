@@ -50,6 +50,7 @@ class CometLogger(Logger):
     def _create_experiment(self) -> Any:
         try:
             import comet_ml
+
             config = comet_ml.ExperimentConfig(
                 api_key=self._api_key,
                 workspace=self._workspace,
@@ -63,12 +64,14 @@ class CometLogger(Logger):
                 experiment.set_experiment_key(self._experiment_key)
             return experiment
         except ImportError:
+
             class _DummyExperiment:
                 def log_metrics(self, *args, **kwargs): ...
                 def log_parameters(self, *args, **kwargs): ...
                 def __internal_api__log_metrics__(self, *args, **kwargs): ...
                 def __internal_api__log_parameters__(self, *args, **kwargs): ...
                 def end(self): ...
+
             return _DummyExperiment()
 
     @property

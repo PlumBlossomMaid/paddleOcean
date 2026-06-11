@@ -108,9 +108,8 @@ class ModelCheckpoint(Callback):
                 # Manage top-k
                 self.best_k_models[ckpt_path] = score
                 if self.save_top_k > 0:
-                    sorted_paths = sorted(self.best_k_models.items(), key=lambda x: x[1],
-                                          reverse=(self.mode == "max"))
-                    for path, _ in sorted_paths[self.save_top_k:]:
+                    sorted_paths = sorted(self.best_k_models.items(), key=lambda x: x[1], reverse=(self.mode == "max"))
+                    for path, _ in sorted_paths[self.save_top_k :]:
                         if os.path.exists(path):
                             os.remove(path)
                         self.best_k_models.pop(path, None)

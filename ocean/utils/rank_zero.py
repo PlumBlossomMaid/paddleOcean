@@ -11,11 +11,13 @@ def rank_zero_only(fn: F) -> F:
 
     In non-distributed mode (world_size=1), the function always runs.
     """
+
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         if local_rank == 0:
             return fn(*args, **kwargs)
         return None
+
     return wrapper  # type: ignore
 
 

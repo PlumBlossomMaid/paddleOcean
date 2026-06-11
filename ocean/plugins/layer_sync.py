@@ -3,7 +3,6 @@
 Ensures parameter initialization is synchronized across all devices.
 """
 
-
 import paddle
 
 

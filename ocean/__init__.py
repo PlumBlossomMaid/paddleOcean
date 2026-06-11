@@ -101,31 +101,71 @@ __version__ = "0.1.0"
 # ====================================================================
 __all__ = [
     # Core
-    "Model", "Trainer", "DataModule", "Gear",
+    "Model",
+    "Trainer",
+    "DataModule",
+    "Gear",
     # Accelerators
-    "Accelerator", "CPUAccelerator", "CUDAAccelerator", "GPUAccelerator",
+    "Accelerator",
+    "CPUAccelerator",
+    "CUDAAccelerator",
+    "GPUAccelerator",
     # Callbacks
-    "Callback", "ModelCheckpoint", "EarlyStopping", "LearningRateMonitor",
-    "Timer", "ModelSummary", "RichModelSummary", "DeviceStatsMonitor",
-    "LambdaCallback", "PredictionWriter", "BackboneFinetuning",
-    "GradientAccumulationScheduler", "OnExceptionCheckpoint",
-    "ThroughputMonitor", "StochasticWeightAveraging", "WeightAveraging",
-    "ProgressBar", "TQDMProgressBar",
+    "Callback",
+    "ModelCheckpoint",
+    "EarlyStopping",
+    "LearningRateMonitor",
+    "Timer",
+    "ModelSummary",
+    "RichModelSummary",
+    "DeviceStatsMonitor",
+    "LambdaCallback",
+    "PredictionWriter",
+    "BackboneFinetuning",
+    "GradientAccumulationScheduler",
+    "OnExceptionCheckpoint",
+    "ThroughputMonitor",
+    "StochasticWeightAveraging",
+    "WeightAveraging",
+    "ProgressBar",
+    "TQDMProgressBar",
     # Loggers
-    "Logger", "CSVLogger", "VisualDLLogger", "WandbLogger", "MLFlowLogger", "CometLogger",
-    "OceanLogger", "Ocelogger",
+    "Logger",
+    "CSVLogger",
+    "VisualDLLogger",
+    "WandbLogger",
+    "MLFlowLogger",
+    "CometLogger",
+    "OceanLogger",
+    "Ocelogger",
     # Strategies
-    "DDPStrategy", "DeepSpeedStrategy", "FSDPStrategy",
+    "DDPStrategy",
+    "DeepSpeedStrategy",
+    "FSDPStrategy",
     # Plugins
     "MixedPrecision",
     # Enums
     "OceanEnum",
     # Compat APIs
-    "repeat_interleave", "index_add", "scatter_along_axis", "scatter_nd",
-    "take_along_axis", "put_along_axis", "masked_fill", "masked_select",
-    "sort", "argsort", "unique", "nonzero", "logsumexp", "lgamma",
+    "repeat_interleave",
+    "index_add",
+    "scatter_along_axis",
+    "scatter_nd",
+    "take_along_axis",
+    "put_along_axis",
+    "masked_fill",
+    "masked_select",
+    "sort",
+    "argsort",
+    "unique",
+    "nonzero",
+    "logsumexp",
+    "lgamma",
     # Version
-    "Version", "PADDLE_VERSION", "version_gte", "version_lt",
+    "Version",
+    "PADDLE_VERSION",
+    "version_gte",
+    "version_lt",
     # Ocean utilities
     "seed_everything",
 ]
@@ -134,6 +174,7 @@ __all__ = [
 # ====================================================================
 # Dynamic paddle proxy: any attribute not defined above falls through to paddle
 # ====================================================================
+
 
 class _PaddleProxy(ModuleType):
     """Module proxy that resolves unknown attributes to paddle equivalents.
@@ -172,8 +213,7 @@ class _PaddleProxy(ModuleType):
             pass
 
         raise AttributeError(
-            f"module 'ocean' has no attribute {name!r}. "
-            f"This API may not exist in PaddlePaddle {PADDLE_VERSION}."
+            f"module 'ocean' has no attribute {name!r}. This API may not exist in PaddlePaddle {PADDLE_VERSION}."
         )
 
     def __dir__(self) -> list:

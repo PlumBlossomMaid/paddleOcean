@@ -31,12 +31,14 @@ class DeviceStatsMonitor(Callback):
         if not getattr(trainer, "loggers", None):
             return
         import paddle
+
         stats = {}
         if paddle.is_compiled_with_cuda():
             stats["gpu_memory_allocated_mb"] = paddle.device.cuda.memory_allocated() / (1024 * 1024)
             stats["gpu_memory_reserved_mb"] = paddle.device.cuda.memory_reserved() / (1024 * 1024)
         if self.cpu_stats:
             import psutil
+
             stats["cpu_percent"] = psutil.cpu_percent()
             stats["ram_used_mb"] = psutil.virtual_memory().used / (1024 * 1024)
 

@@ -20,7 +20,7 @@ class CombinedLoader(Iterator):
         self._current_idx = 0
 
     def __iter__(self) -> "CombinedLoader":
-        self._iterators = [iter(l) for l in self.loaders if l is not None]
+        self._iterators = [iter(loader) for loader in self.loaders if loader is not None]
         self._current_idx = 0
         return self
 

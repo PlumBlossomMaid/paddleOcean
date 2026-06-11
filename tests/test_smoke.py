@@ -18,6 +18,7 @@ import ocean
 # Lightning-mode model
 # ====================================================================
 
+
 class LinearModel(ocean.Model):
     """A simple linear model in Lightning mode."""
 
@@ -52,6 +53,7 @@ class LinearModel(ocean.Model):
 # Keras-mode model
 # ====================================================================
 
+
 def make_keras_model():
     net = paddle.nn.Sequential(
         paddle.nn.Linear(10, 20),
@@ -70,6 +72,7 @@ def make_keras_model():
 # DataModule
 # ====================================================================
 
+
 class RandomDataModule(ocean.DataModule):
     """Simple DataModule that generates random data."""
 
@@ -82,11 +85,11 @@ class RandomDataModule(ocean.DataModule):
         # Synthetic dataset
         self.train_dataset = paddle.io.TensorDataset([
             paddle.randn([self.num_samples, 10]),
-            paddle.randint(0, 2, [self.num_samples])
+            paddle.randint(0, 2, [self.num_samples]),
         ])
         self.val_dataset = paddle.io.TensorDataset([
             paddle.randn([self.num_samples // 2, 10]),
-            paddle.randint(0, 2, [self.num_samples // 2])
+            paddle.randint(0, 2, [self.num_samples // 2]),
         ])
 
     def train_dataloader(self):
@@ -99,6 +102,7 @@ class RandomDataModule(ocean.DataModule):
 # ====================================================================
 # Tests
 # ====================================================================
+
 
 def test_model_lightning_mode():
     """Test Lightning mode: subclass ocean.Model with hooks."""
@@ -116,12 +120,8 @@ def test_model_lightning_mode_direct_dataloaders():
     """Test Lightning mode with direct dataloader arguments."""
     model = LinearModel()
 
-    train_dataset = paddle.io.TensorDataset([
-        paddle.randn([50, 10]), paddle.randint(0, 2, [50])
-    ])
-    val_dataset = paddle.io.TensorDataset([
-        paddle.randn([20, 10]), paddle.randint(0, 2, [20])
-    ])
+    train_dataset = paddle.io.TensorDataset([paddle.randn([50, 10]), paddle.randint(0, 2, [50])])
+    val_dataset = paddle.io.TensorDataset([paddle.randn([20, 10]), paddle.randint(0, 2, [20])])
     train_loader = paddle.io.DataLoader(train_dataset, batch_size=8)
     val_loader = paddle.io.DataLoader(val_dataset, batch_size=8)
 
@@ -136,9 +136,7 @@ def test_model_keras_mode():
     model = make_keras_model()
     assert model.__model__ is not None
 
-    train_dataset = paddle.io.TensorDataset([
-        paddle.randn([50, 10]), paddle.randint(0, 2, [50])
-    ])
+    train_dataset = paddle.io.TensorDataset([paddle.randn([50, 10]), paddle.randint(0, 2, [50])])
     train_loader = paddle.io.DataLoader(train_dataset, batch_size=8)
 
     model.fit(train_data=train_loader, epochs=2)
@@ -161,10 +159,12 @@ def test_trainer_validate():
 
 def test_trainer_predict():
     """Test Trainer.predict() standalone."""
+
     class PredictModel(ocean.Model):
         def __init__(self):
             super().__init__()
             self.linear = paddle.nn.Linear(10, 2)
+
         def forward(self, x):
             return self.linear(x)
 
@@ -182,7 +182,6 @@ def test_datamodule_basic():
     dm = RandomDataModule(num_samples=40, batch_size=8)
     dm.setup("fit")
     train_loader = dm.train_dataloader()
-    val_loader = dm.val_dataloader()
 
     batch = next(iter(train_loader))
     assert len(batch) == 2  # x, y
