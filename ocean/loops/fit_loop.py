@@ -80,6 +80,7 @@ class _FitLoop(_Loop):
                         model.on_before_optimizer_step(trainer._optimizer)
                         trainer._optimizer.step()
                         trainer._optimizer.clear_grad()
+                        trainer._optimizer_step += 1
                         opt_acc = 0
                         trainer._dataloader_step += 1
 
