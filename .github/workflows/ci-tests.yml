@@ -77,7 +77,7 @@ jobs:
 
       - name: Install test dependencies
         run: |
-          pip install pytest pytest-timeout
+          pip install pytest pytest-timeout parameterized scipy librosa
 
       - name: Run core tests
         run: |
