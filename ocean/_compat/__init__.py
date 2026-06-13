@@ -6,6 +6,7 @@ a pure-Paddle fallback (no C++ extensions) to ensure compatibility
 with older versions.
 """
 
+from ocean._compat import audio
 from ocean._compat.version import (
     PADDLE_VERSION,
     V_2_4,
