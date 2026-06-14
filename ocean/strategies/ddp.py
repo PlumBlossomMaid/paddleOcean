@@ -129,8 +129,14 @@ class DDPStrategy(ParallelStrategy):
     # Collective communication operations
     # ==================================================================
 
-    def reduce(self, tensor: Any, reduce_op: str = "mean") -> Any:
-        """Reduce a tensor across all processes."""
+    def reduce(self, tensor: Any, reduce_op: str = "mean", group: Any = None) -> Any:
+        """Reduce a tensor across all processes.
+
+        Args:
+            tensor: The tensor to reduce.
+            reduce_op: 'mean' or 'sum' for the reduction.
+            group: Process group (currently uses world group).
+        """
         if not self._is_initialized or not isinstance(tensor, paddle.Tensor):
             return tensor
         try:
@@ -224,7 +230,7 @@ class DDPStrategy(ParallelStrategy):
         """Save checkpoint - only on global rank 0."""
         if self.is_global_zero:
             try:
-                paddle.distrained.save_state_dict(
+                paddle.distributed.save_state_dict(
                     checkpoint.get("state_dict", {}),
                     filepath,
                 )

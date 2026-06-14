@@ -121,7 +121,7 @@ class Strategy(ABC):
         with self._precision_plugin.forward_context():
             return self._lightning_module.predict_step(*args, **kwargs)
 
-    def reduce(self, tensor: Any, reduce_op: str = "mean") -> Any:
+    def reduce(self, tensor: Any, reduce_op: str = "mean", group: Any = None) -> Any:
         return tensor
 
     def barrier(self, name: Optional[str] = None) -> None:

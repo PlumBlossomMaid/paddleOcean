@@ -500,7 +500,7 @@ class Trainer:
             try:
                 import paddle
 
-                value = self.strategy.reduce(paddle.to_tensor(value), sync_dist_group)
+                value = self.strategy.reduce(paddle.to_tensor(value), reduce_op="mean", group=sync_dist_group)
                 if hasattr(value, "item"):
                     value = value.item()
             except Exception:
