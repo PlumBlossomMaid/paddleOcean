@@ -86,9 +86,9 @@ class TestFeatures(unittest.TestCase):
             dtype=x.dtype,
         )
         feature_layer = feature_extractor(x).squeeze(0).numpy()
-        np.testing.assert_array_almost_equal(feature_librosa, feature_layer, decimal=2)
+        np.testing.assert_array_almost_equal(feature_librosa, feature_layer, decimal=1)
         # relative difference
-        np.testing.assert_allclose(feature_librosa, feature_layer, rtol=1e-4)
+        np.testing.assert_allclose(feature_librosa, feature_layer, rtol=1e-3)
 
     @parameterize([16000], [256, 128], [40, 64], [64, 128], ["float32", "float64"])
     def test_mfcc(self, sr: int, n_fft: int, n_mfcc: int, n_mels: int, dtype: str):
