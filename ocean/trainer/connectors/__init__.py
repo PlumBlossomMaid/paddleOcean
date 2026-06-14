@@ -361,10 +361,14 @@ class _AcceleratorConnector:
 
     @staticmethod
     def _set_flags(deterministic: Any = None, benchmark: Any = None) -> None:
-        """Set Paddle flags for deterministic/benchmark modes.
+        """Set flags for deterministic/benchmark modes.
 
         Mirrors PyTorch Lightning's _set_torch_flags.
+        PaddlePaddle may not support cudnn flags via set_flags on all builds,
+        so we use try/except and fall back to environment variables.
         """
+        import os
+
         if deterministic is True or deterministic == "warn":
             if benchmark is None:
                 benchmark = False
@@ -372,15 +376,20 @@ class _AcceleratorConnector:
                 print("Warning: deterministic=True and benchmark=True are incompatible")
 
         if benchmark is not None:
-            paddle.set_flags({"FLAGS_cudnn_benchmark": benchmark})
+            try:
+                paddle.set_flags({"FLAGS_cudnn_benchmark": benchmark})
+            except ValueError:
+                pass
 
         if deterministic is True:
-            paddle.set_flags({"FLAGS_cudnn_deterministic": True})
-            import os
-
+            try:
+                paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+            except ValueError:
+                pass
             os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         elif deterministic == "warn":
-            paddle.set_flags({"FLAGS_cudnn_deterministic": True})
-            import os
-
+            try:
+                paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+            except ValueError:
+                pass
             os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"

@@ -43,14 +43,22 @@ def seed_everything(
             print("Warning: deterministic=True and benchmark=True are incompatible")
 
     if benchmark is not None:
-        paddle.set_flags({"FLAGS_cudnn_benchmark": benchmark})
+        try:
+            paddle.set_flags({"FLAGS_cudnn_benchmark": benchmark})
+        except ValueError:
+            pass
 
     if deterministic is True:
-        paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+        try:
+            paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+        except ValueError:
+            pass
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     elif deterministic == "warn":
-        # Paddle does not have a warn-only mode; set deterministic anyway
-        paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+        try:
+            paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+        except ValueError:
+            pass
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
     if deterministic is not None and verbose:
