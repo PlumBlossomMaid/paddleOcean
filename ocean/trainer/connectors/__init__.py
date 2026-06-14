@@ -157,10 +157,15 @@ class _CallbackConnector:
         enable_checkpointing: bool,
         enable_progress_bar: bool,
         default_root_dir: Optional[str],
+        max_time: Any = None,
     ) -> None:
         callbacks = callbacks or []
         if enable_checkpointing and not any(isinstance(cb, ModelCheckpoint) for cb in callbacks):
             callbacks.append(ModelCheckpoint(dirpath=default_root_dir or "."))
+        if max_time is not None and not any(cb.__class__.__name__ == "Timer" for cb in callbacks):
+            from ocean.callbacks.timer import Timer
+
+            callbacks.append(Timer(duration=max_time))
         self.trainer.callbacks = callbacks
 
     def _attach_model_callbacks(self) -> None:
@@ -260,11 +265,14 @@ class _AcceleratorConnector:
         strategy: str,
         devices: Any,
         precision: str,
+        deterministic: Any = None,
+        benchmark: Any = None,
     ) -> None:
         self.trainer = trainer
         self._accelerator = self._resolve_accelerator(accelerator)
         self._strategy = self._resolve_strategy(strategy, devices)
         self._precision = self._resolve_precision(precision)
+        self._set_flags(deterministic, benchmark)
 
     @property
     def strategy(self) -> Any:
@@ -350,3 +358,29 @@ class _AcceleratorConnector:
 
             return DoublePrecision()
         return Precision(precision)
+
+    @staticmethod
+    def _set_flags(deterministic: Any = None, benchmark: Any = None) -> None:
+        """Set Paddle flags for deterministic/benchmark modes.
+
+        Mirrors PyTorch Lightning's _set_torch_flags.
+        """
+        if deterministic is True or deterministic == "warn":
+            if benchmark is None:
+                benchmark = False
+            elif benchmark:
+                print("Warning: deterministic=True and benchmark=True are incompatible")
+
+        if benchmark is not None:
+            paddle.set_flags({"FLAGS_cudnn_benchmark": benchmark})
+
+        if deterministic is True:
+            paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+            import os
+
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+        elif deterministic == "warn":
+            paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+            import os
+
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"

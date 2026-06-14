@@ -47,6 +47,13 @@ class Trainer:
         gradient_clip_algorithm: Clipping algorithm ('norm' or 'value').
         num_sanity_val_steps: Validation steps before training starts.
         fast_dev_run: Run N batches for debugging.
+        max_time: Maximum training time. String ("HH:MM:SS", "DD:HH:MM:SS"),
+            timedelta, dict, or seconds. Stops training when exceeded.
+        overfit_batches: Overfit N batches (int) or fraction (float).
+        deterministic: If True, use deterministic algorithms for reproducibility.
+            Can be "warn" to warn on non-deterministic ops. Default: None.
+        benchmark: If True, enable cudnn benchmark for faster training.
+            Incompatible with deterministic=True. Default: None.
         callbacks: List of callbacks.
         logger: Logger or list of loggers, or True/False.
         enable_checkpointing: Enable automatic checkpointing.
@@ -84,6 +91,10 @@ class Trainer:
         gradient_clip_algorithm: str = "norm",
         num_sanity_val_steps: Optional[int] = None,
         fast_dev_run: Union[int, bool] = False,
+        max_time: Any = None,
+        overfit_batches: Union[int, float] = 0.0,
+        deterministic: Any = None,
+        benchmark: Any = None,
         callbacks: Optional[list] = None,
         logger: Any = None,
         enable_checkpointing: bool = True,
@@ -124,6 +135,7 @@ class Trainer:
         self.gradient_clip_algorithm = gradient_clip_algorithm
         self.num_sanity_val_steps = num_sanity_val_steps
         self.fast_dev_run = fast_dev_run
+        self.overfit_batches = overfit_batches
         self.verbose = verbose
         self.inference_mode = inference_mode
         self.use_distributed_sampler = use_distributed_sampler
@@ -148,15 +160,32 @@ class Trainer:
 
         # === Model & Data ===
         self._model: Any = None
-        self._optimizer: Any = None
         self.datamodule: Any = None
         self.train_dataloader: Any = None
         self.val_dataloaders: list = []
         self.test_dataloaders: list = []
         self.predict_dataloaders: list = []
 
+        # === Debug flags ===
+        from ocean.trainer.setup import _init_debugging_flags
+
+        _init_debugging_flags(
+            self,
+            limit_train_batches,
+            limit_val_batches,
+            limit_test_batches,
+            limit_predict_batches,
+            overfit_batches,
+            val_check_interval,
+            fast_dev_run,
+            accumulate_grad_batches,
+            detect_anomaly,
+        )
+
         # === Connectors ===
-        self._accelerator_connector = _AcceleratorConnector(self, accelerator, strategy, devices, precision)
+        self._accelerator_connector = _AcceleratorConnector(
+            self, accelerator, strategy, devices, precision, deterministic, benchmark
+        )
         self._data_connector = _DataConnector(self)
         self._logger_connector = _LoggerConnector(self)
         self._callback_connector = _CallbackConnector(self)
@@ -169,7 +198,7 @@ class Trainer:
         )
         self._logger_connector.on_trainer_init(logger, log_every_n_steps)
         self._callback_connector.on_trainer_init(
-            callbacks, enable_checkpointing, enable_progress_bar, self.default_root_dir
+            callbacks, enable_checkpointing, enable_progress_bar, self.default_root_dir, max_time
         )
 
         # === Loops ===
@@ -457,9 +486,30 @@ class Trainer:
         on_epoch: Any = None,
         reduce_fx: str = "mean",
         batch_size: Optional[int] = None,
+        sync_dist: bool = False,
+        sync_dist_group: Optional[Any] = None,
+        add_dataloader_idx: bool = True,
+        rank_zero_only: bool = False,
+        metric_attribute: Optional[str] = None,
     ) -> None:
         if hasattr(value, "item"):
             value = value.item()
+
+        # Handle sync_dist: reduce across processes
+        if sync_dist and hasattr(self.strategy, "reduce"):
+            try:
+                import paddle
+
+                value = self.strategy.reduce(paddle.to_tensor(value), sync_dist_group)
+                if hasattr(value, "item"):
+                    value = value.item()
+            except Exception:
+                pass
+
+        # Handle rank_zero_only: skip logging on non-zero ranks
+        if rank_zero_only and not self.is_global_zero:
+            return
+
         self._log_metrics_buffer[name].append(value)
         self._logger_connector.log_metric_value(name, float(value), prog_bar=prog_bar)
 

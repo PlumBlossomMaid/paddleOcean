@@ -120,8 +120,8 @@ class Model(nn.Layer):
             return self._keras_training_step(batch, batch_idx)
         raise NotImplementedError("training_step must be implemented")
 
-    def validation_step(self, batch: Any, batch_idx: int) -> Any: ...
-    def test_step(self, batch: Any, batch_idx: int) -> Any: ...
+    def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any: ...
+    def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any: ...
 
     def predict_step(self, batch: Any, batch_idx: int = 0) -> Any:
         model = self.__model__ if self.__model__ is not None else self
@@ -187,11 +187,65 @@ class Model(nn.Layer):
         on_epoch: Optional[bool] = None,
         reduce_fx: str = "mean",
         batch_size: Optional[int] = None,
+        sync_dist: bool = False,
+        sync_dist_group: Optional[Any] = None,
+        add_dataloader_idx: bool = True,
+        rank_zero_only: bool = False,
+        metric_attribute: Optional[str] = None,
     ) -> None:
         trainer = self._trainer
         if trainer is None:
             return
-        trainer._log_metric(self, name, value, prog_bar, logger, on_step, on_epoch, reduce_fx, batch_size)
+        trainer._log_metric(
+            self,
+            name,
+            value,
+            prog_bar,
+            logger,
+            on_step,
+            on_epoch,
+            reduce_fx,
+            batch_size,
+            sync_dist,
+            sync_dist_group,
+            add_dataloader_idx,
+            rank_zero_only,
+            metric_attribute,
+        )
+
+    def log_dict(
+        self,
+        dictionary: dict[str, Union[float, paddle.Tensor]],
+        prog_bar: bool = False,
+        logger: bool = True,
+        on_step: Optional[bool] = None,
+        on_epoch: Optional[bool] = None,
+        reduce_fx: str = "mean",
+        batch_size: Optional[int] = None,
+        sync_dist: bool = False,
+        sync_dist_group: Optional[Any] = None,
+        add_dataloader_idx: bool = True,
+        rank_zero_only: bool = False,
+    ) -> None:
+        """Log a dictionary of metrics at once.
+
+        Mirrors PyTorch Lightning's log_dict.
+        """
+        for name, value in dictionary.items():
+            self.log(
+                name,
+                value,
+                prog_bar=prog_bar,
+                logger=logger,
+                on_step=on_step,
+                on_epoch=on_epoch,
+                reduce_fx=reduce_fx,
+                batch_size=batch_size,
+                sync_dist=sync_dist,
+                sync_dist_group=sync_dist_group,
+                add_dataloader_idx=add_dataloader_idx,
+                rank_zero_only=rank_zero_only,
+            )
 
     # ====================================================================
     # Checkpoint save/load

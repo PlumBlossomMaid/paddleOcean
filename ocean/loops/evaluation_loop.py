@@ -1,5 +1,6 @@
 """_EvaluationLoop - runs validation or test loops."""
 
+import inspect
 from typing import Any
 
 import paddle
@@ -73,7 +74,13 @@ class _EvaluationLoop(_Loop):
                     device = trainer._resolve_device()
                     batch = trainer._move_to_device(batch, device)
                     _call_lightning_module_hook(trainer, batch_start_hook, batch, batch_idx, dl_idx)
-                    result = getattr(model, step_method)(batch, batch_idx)
+                    step_fn = getattr(model, step_method)
+                    # Check if step_method accepts dataloader_idx (backward compat)
+                    sig = inspect.signature(step_fn)
+                    if "dataloader_idx" in sig.parameters:
+                        result = step_fn(batch, batch_idx, dataloader_idx=dl_idx)
+                    else:
+                        result = step_fn(batch, batch_idx)
                     _call_lightning_module_hook(trainer, batch_end_hook, result, batch, batch_idx, dl_idx)
 
         trainer._compute_epoch_metrics()
