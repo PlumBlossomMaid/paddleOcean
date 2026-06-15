@@ -8,15 +8,11 @@ Usage (Python API):
     >>> delete_file("user/repo", "path/to/file", token="...")
 """
 
-import json
-import os
-
 import click
-import requests
 
 from ocean.cli.cloud import _config
 from ocean.cli.cloud.auth import get_token
-from ocean.cli.cloud.upload import _git_api, _check_file_exists
+from ocean.cli.cloud.upload import _check_file_exists, _git_api
 
 
 def delete_file(
@@ -78,7 +74,7 @@ def delete(repo_id, path_in_repo, repo_type, revision, token, message):
 
     PATH_IN_REPO: Path to the file to delete.
     """
-    result = delete_file(
+    delete_file(
         repo_id=repo_id,
         path_in_repo=path_in_repo,
         token=token,
