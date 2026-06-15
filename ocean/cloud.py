@@ -11,3 +11,4 @@ Examples:
 from ocean.cli.cloud.auth import get_token  # noqa: F401
 from ocean.cli.cloud.download import download_file  # noqa: F401
 from ocean.cli.cloud.upload import upload_file, upload_folder  # noqa: F401
+from ocean.cli.cloud.delete import delete_file  # noqa: F401

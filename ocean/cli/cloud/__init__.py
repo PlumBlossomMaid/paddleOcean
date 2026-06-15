@@ -25,6 +25,8 @@ from ocean.cli.cloud.download import download_file
 from ocean.cli.cloud.job import job
 from ocean.cli.cloud.upload import upload as _upload_cli
 from ocean.cli.cloud.upload import upload_file, upload_folder
+from ocean.cli.cloud.delete import delete as _delete_cli
+from ocean.cli.cloud.delete import delete_file as _delete_fn
 
 
 @click.group()
@@ -39,4 +41,5 @@ cloud.add_command(_login_cli)
 cloud.add_command(_logout_cli)
 cloud.add_command(_upload_cli)
 cloud.add_command(_download_cli)
+cloud.add_command(_delete_cli)
 cloud.add_command(job)
