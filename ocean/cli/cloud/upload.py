@@ -427,7 +427,29 @@ def _sts_multipart_upload(sts_token: dict, local_path: str, desc: str) -> None:
     click.echo(f"  (STS multipart: {total_parts} parts, {chunk_size_mb}MB each, {thread_num} threads)")
 
     # 1. Initiate
+    import time
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _upload_with_retry(pn, sz, offset, max_retries=5):
+        for attempt in range(1, max_retries + 1):
+            try:
+                etag = client.upload_part_from_file(
+                    bucket,
+                    key,
+                    upload_id,
+                    pn,
+                    sz,
+                    local_path,
+                    offset,
+                )
+                return etag.strip('"')
+            except Exception:
+                if attempt < max_retries:
+                    wait = min(2**attempt, 30)
+                    click.echo(f"    ⚠️  part {pn} failed (attempt {attempt}), retry in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    raise
 
     upload_id = client.initiate_multipart_upload(bucket, key)
 
@@ -445,23 +467,14 @@ def _sts_multipart_upload(sts_token: dict, local_path: str, desc: str) -> None:
             offset = 0
             for pn in range(1, total_parts + 1):
                 sz = min(part_size, file_size - offset)
-                fut = pool.submit(
-                    client.upload_part_from_file,
-                    bucket,
-                    key,
-                    upload_id,
-                    pn,
-                    sz,
-                    local_path,
-                    offset,
-                )
+                fut = pool.submit(_upload_with_retry, pn, sz, offset)
                 fut_to_part[fut] = (pn, sz)
                 offset += sz
 
             for fut in as_completed(fut_to_part):
                 etag = fut.result()
                 pn, sz = fut_to_part[fut]
-                part_list.append({"partNumber": pn, "eTag": etag.strip('"')})
+                part_list.append({"partNumber": pn, "eTag": etag})
                 pbar.update(sz)
 
     # 3. Complete
