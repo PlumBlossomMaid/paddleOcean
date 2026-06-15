@@ -11,9 +11,7 @@ from ocean.cli.cloud.auth import get_token
 
 
 def _api_url(path: str) -> str:
-    prefix = os.getenv(
-        "STUDIO_MODEL_API_URL_PREFIX", _config.MODEL_API_PREFIX
-    )
+    prefix = os.getenv("STUDIO_MODEL_API_URL_PREFIX", _config.MODEL_API_PREFIX)
     return f"{prefix}{path}"
 
 

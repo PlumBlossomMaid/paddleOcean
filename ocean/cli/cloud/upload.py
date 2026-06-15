@@ -44,9 +44,7 @@ def _git_api(method: str, path: str, token: str, data=None) -> dict:
     resp = requests.request(method, url, headers=_header_fill(token), json=data, timeout=30)
     if resp.status_code in (200, 201):
         return resp.json()
-    raise click.ClickException(
-        f"Git API error [{resp.status_code}]: {resp.text[:200]}"
-    )
+    raise click.ClickException(f"Git API error [{resp.status_code}]: {resp.text[:200]}")
 
 
 def _check_file_exists(repo_id: str, path_in_repo: str, revision: str, token: str):
@@ -111,9 +109,7 @@ class _BosUploader:
 # ── LFS flow ──────────────────────────────────────────────────────────
 
 
-def _lfs_upload_file(
-    repo_id: str, path_in_repo: str, local_path: str, revision: str, token: str
-):
+def _lfs_upload_file(repo_id: str, path_in_repo: str, local_path: str, revision: str, token: str):
     """Upload a single LFS file to AI Studio.
 
     Flow:
@@ -186,16 +182,20 @@ def _lfs_upload_file(
 
     existing_sha = _check_file_exists(repo_id, path_in_repo, revision, token)
     method = "PUT" if existing_sha else "POST"
-    payload = {
-        "branch": revision,
-        "content": pointer_b64,
-        "lfsPointer": True,
-        "sha": existing_sha,
-    } if existing_sha else {
-        "branch": revision,
-        "content": pointer_b64,
-        "lfsPointer": True,
-    }
+    payload = (
+        {
+            "branch": revision,
+            "content": pointer_b64,
+            "lfsPointer": True,
+            "sha": existing_sha,
+        }
+        if existing_sha
+        else {
+            "branch": revision,
+            "content": pointer_b64,
+            "lfsPointer": True,
+        }
+    )
 
     _git_api(method, f"/api/v1/repos/{repo_id}/contents/{path_in_repo}", token, data=payload)
     click.echo(f"  ✅ {path_in_repo} uploaded.")
@@ -204,25 +204,27 @@ def _lfs_upload_file(
 # ── Regular file flow ────────────────────────────────────────────────
 
 
-def _regular_upload_file(
-    repo_id: str, path_in_repo: str, local_path: str, revision: str, token: str
-):
+def _regular_upload_file(repo_id: str, path_in_repo: str, local_path: str, revision: str, token: str):
     """Upload a small file (non-LFS) via Gitea API."""
     with open(local_path, "rb") as f:
         content_b64 = base64.b64encode(f.read()).decode()
 
     existing_sha = _check_file_exists(repo_id, path_in_repo, revision, token)
     method = "PUT" if existing_sha else "POST"
-    payload = {
-        "branch": revision,
-        "content": content_b64,
-        "lfs": False,
-        "sha": existing_sha,
-    } if existing_sha else {
-        "branch": revision,
-        "content": content_b64,
-        "lfs": False,
-    }
+    payload = (
+        {
+            "branch": revision,
+            "content": content_b64,
+            "lfs": False,
+            "sha": existing_sha,
+        }
+        if existing_sha
+        else {
+            "branch": revision,
+            "content": content_b64,
+            "lfs": False,
+        }
+    )
 
     _git_api(method, f"/api/v1/repos/{repo_id}/contents/{path_in_repo}", token, data=payload)
 
@@ -244,11 +246,7 @@ def _upload_item(repo_id, path_in_repo, local_path, revision, token):
     )
 
     is_lfs = False
-    if (
-        isinstance(preupload_resp, dict)
-        and preupload_resp.get("files")
-        and len(preupload_resp["files"]) > 0
-    ):
+    if isinstance(preupload_resp, dict) and preupload_resp.get("files") and len(preupload_resp["files"]) > 0:
         is_lfs = preupload_resp["files"][0].get("lfs", False)
 
     if is_lfs or file_size > 5 * 1024 * 1024:
@@ -309,9 +307,10 @@ def upload(
     with click.progressbar(items, label="Uploading") as bar:
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = {
-                pool.submit(
-                    _upload_item, repo_id, path_in_repo, local_path, revision, token
-                ): (path_in_repo, local_path)
+                pool.submit(_upload_item, repo_id, path_in_repo, local_path, revision, token): (
+                    path_in_repo,
+                    local_path,
+                )
                 for path_in_repo, local_path in bar
             }
             for future in as_completed(futures):

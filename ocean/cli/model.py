@@ -37,6 +37,7 @@ def export(checkpoint, format, output, model_class):
         if model_class:
             module_path, class_name = model_class.rsplit(".", 1)
             import importlib
+
             module = importlib.import_module(module_path)
             model_cls = getattr(module, class_name)
             model_instance = model_cls()
