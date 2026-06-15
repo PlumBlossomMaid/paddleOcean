@@ -24,6 +24,9 @@ import warnings
 from types import ModuleType
 from typing import Any
 
+# Suppress setuptools internal deprecation warning (editable install noise)
+warnings.filterwarnings("ignore", message=".*_get_vc_env.*")
+
 import paddle as _paddle
 
 # ====================================================================
