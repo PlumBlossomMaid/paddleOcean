@@ -45,11 +45,11 @@ def _download_file(url: str, dest: str, token: str, desc: str = ""):
     return dest
 
 
-def _lfs_download_real(repo_id: str, oid: str, file_size: int, token: str, dest: str, desc: str = "") -> None:
-    """Download real LFS content from BOS via LFS batch API."""
+def _lfs_download_real(repo_id: str, oid: str, file_size: int, token: str, dest: str, desc: str = "") -> bool:
+    """Download real LFS content from BOS via LFS batch API.
+    Returns True on success, False if the LFS object is missing."""
     user_name, repo_name = repo_id.split("/")
 
-    # Step 1: LFS batch API → get download URL
     resp = _git_api(
         "POST",
         f"/{user_name}/{repo_name}.git/info/lfs/objects/batch",
@@ -65,35 +65,33 @@ def _lfs_download_real(repo_id: str, oid: str, file_size: int, token: str, dest:
     )
 
     if not resp.get("objects"):
-        raise click.ClickException(f"{desc}: no LFS object found for {oid}")
+        click.echo(f"  ⚠️  {desc}: LFS object not found")
+        return False
 
     obj = resp["objects"][0]
     if "error" in obj:
-        raise click.ClickException(f"{desc}: LFS error: {obj['error']}")
+        code = obj["error"].get("code", "?")
+        msg = obj["error"].get("message", "?")
+        click.echo(f"  ⚠️  {desc}: LFS error [{code}]: {msg}")
+        click.echo(f"  💡  Re-upload: ocean cloud upload <repo> '{dest}'")
+        return False
 
     actions = obj.get("actions", {})
     download_info = actions.get("download", {})
     download_href = download_info.get("href", "")
     if not download_href:
-        raise click.ClickException(f"{desc}: no download URL available")
+        click.echo(f"  ⚠️  {desc}: no download URL")
+        return False
 
-    # Step 2: Download from BOS
-    click.echo(f"  ☁️  {desc} ({file_size / 1024 / 1024:.1f} MB)")
     resp = requests.get(download_href, stream=True, timeout=7200)
     resp.raise_for_status()
-
     with open(dest, "wb") as f:
-        with ColoredTqdm(
-            total=file_size,
-            unit="B",
-            unit_scale=True,
-            desc=desc,
-            leave=False,
-        ) as pbar:
+        with ColoredTqdm(total=file_size, unit="B", unit_scale=True, desc=desc, leave=False) as pbar:
             for chunk in resp.iter_content(chunk_size=8 * 1024 * 1024):
                 if chunk:
                     f.write(chunk)
                     pbar.update(len(chunk))
+    return True
 
 
 def _download_with_lfs_check(repo_id: str, file_info: dict, dest: str, token: str, revision: str = "master"):
