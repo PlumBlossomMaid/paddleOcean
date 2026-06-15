@@ -536,13 +536,8 @@ def _lfs_upload_file(
         desc = f"{path_in_repo} ({file_size / 1024 / 1024:.1f} MB)"
 
         if sts_token and sts_token.get("bosHost") and file_size > 5 * 1024**3:
-            # Files >5GB need multipart (BOS single PUT limit). Try HTTP PUT first;
-            # it often works, but fall back to aistudio_sdk's bos_sdk if available.
-            try:
-                _http_put(upload_href, local_path, desc)
-            except requests.exceptions.RequestException:
-                click.echo("  ⚠️  HTTP PUT failed, trying STS multipart...")
-                _sts_multipart_upload(sts_token, local_path, desc)
+            # Files >5GB: BOS single PUT limit is 5GB, use STS multipart directly.
+            _sts_multipart_upload(sts_token, local_path, desc)
         else:
             _http_put(upload_href, local_path, desc)
     else:
