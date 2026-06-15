@@ -40,6 +40,12 @@ warnings.filterwarnings(
 )
 
 # ====================================================================
+# Auto device detection — set best available device on import
+# ====================================================================
+if _paddle.is_compiled_with_cuda():
+    _paddle.set_device("gpu")
+
+# ====================================================================
 # Compat-wrapped APIs
 # ====================================================================
 from ocean._compat.tensor import (
