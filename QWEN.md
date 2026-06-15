@@ -158,58 +158,11 @@ trainer.fit(model, train_loader)
 - **检测**：`paddle.is_compiled_with_cuda()` / `is_compiled_with_rocm()` / `is_compiled_with_xpu()`
 
 ### Cloud SDK（AI Studio）
-`ocean/cli/cloud/` 提供了完整的百度 AI Studio 云 SDK，不依赖官方 `aistudio-sdk` 包。
+`ocean/cli/cloud/` — 百度 AI Studio 云 SDK，上传/下载/认证/任务管理。
 
-**文件结构：**
-```
-ocean/cli/cloud/
-├── __init__.py   注册 cloud CLI 命令组 + 导出公共 Python API
-├── _config.py    API 端点常量 + repo_id 校验
-├── auth.py       token 管理（环境变量 / 本地缓存文件）
-├── upload.py     上传实现（核心，含 BOS HTTP PUT / multipart）
-├── download.py   下载文件
-└── job.py        训练任务管理（submit/list/stop）
-ocean/cloud.py    简化的公共导入入口
-ocean/utils/colored_tqdm.py  彩虹渐变进度条
-```
+**入口：** CLI `ocean cloud <command>` / Python `from ocean.cloud import upload_file`
 
-**CLI 用法：**
-```bash
-# 登录（保存 token 到 ~/.cache/ocean/.auth/token）
-ocean cloud login --token <your_token>
-
-# 上传文件/文件夹
-ocean cloud upload user/repo ./file.zip --repo-type dataset
-ocean cloud upload user/repo ./data_dir/ --repo-type model
-
-# 下载
-ocean cloud download user/repo ./path/in/repo --local-dir ./
-
-# 训练任务
-ocean cloud job submit --name my_job --cmd "python train.py" --path ./
-```
-
-**Python API：**
-```python
-from ocean.cloud import upload_file, upload_folder, download_file
-# token 自动从环境变量 AISTUDIO_ACCESS_TOKEN 或 login 缓存读取
-upload_file("user/repo", "./file.zip", repo_type="dataset")
-upload_folder("user/repo", "./data/", repo_type="dataset")
-download_file("user/repo", "model.pdparams", local_dir="./")
-```
-
-**上传架构要点：**
-1. **去 BCE SDK 依赖** — 不依赖 `baidubce`（其 `put_super_obejct_from_file` 有 typo）
-2. **LFS batch API** — Content-Type 必须为 `application/vnd.git-lfs+json`，同时设 Accept
-3. **BOS 上传** — <5GB 用 HTTP PUT 到 pre-signed URL，>5GB 用 BOS REST multipart
-4. **LFS 指针** — BOS 内容上传后必须提交指针到 Gitea，内容已存在时仍需提交指针
-5. **错误处理** — 线程池用 `future.result()` 收集异常，统一报错不吞没
-6. **彩虹进度条** — `ColoredTqdm` 用于 SHA256 计算和 BOS 上传阶段
-
-**修复过的问题（历史经验）：**
-- `_check_file_exists` 必须直接调 `requests.get`（404 是正常情况，不是错误）
-- `_git_api` 用 `data=json.dumps(data)` 而非 `json=data`（避免 requests 覆盖 Content-Type）
-- LFS 指针提交与内容上传必须解耦（内容 hash 已存在时仍需提交指针到仓库）
+**详细文档：** 见 skill `/skill aistudio-cloud-upload`（含架构要点、历史修复经验）
 
 ### Gear
 - **对标**：Lightning Fabric
