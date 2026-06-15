@@ -397,28 +397,76 @@ def _http_put(url: str, local_path: str, desc: str) -> None:
 
 
 def _sts_multipart_upload(sts_token: dict, local_path: str, desc: str) -> None:
-    """Upload via STS multipart using aistudio_sdk's bos_sdk (if available)."""
-    try:
-        from aistudio_sdk.utils.bos_sdk import sts_client, upload_super_file
+    """Upload via STS multipart with progress tracking.
 
-        bos_host = sts_token.get("bosHost", "")
-        if not bos_host.startswith("http"):
-            bos_host = "https://" + bos_host
-        client = sts_client(
-            bos_host,
-            sts_token.get("accessKeyId"),
-            sts_token.get("secretAccessKey"),
-            sts_token.get("sessionToken"),
-        )
-        click.echo(f"  ☁️  [STS] Uploading {desc}...")
-        upload_super_file(
-            client,
-            bucket=sts_token.get("bucketName", ""),
-            file=local_path,
-            key=sts_token.get("key", ""),
-        )
+    Uses ``aistudio_sdk.utils.bos_sdk.sts_client`` for the BOS client,
+    but implements the multipart loop with a ColoredTqdm progress bar.
+    """
+    try:
+        from aistudio_sdk.utils.bos_sdk import sts_client
     except ImportError:
         raise click.ClickException("STS multipart upload requires aistudio-sdk: pip install aistudio-sdk")
+
+    bos_host = sts_token.get("bosHost", "")
+    if not bos_host.startswith("http"):
+        bos_host = "https://" + bos_host
+    client = sts_client(
+        bos_host,
+        sts_token.get("accessKeyId"),
+        sts_token.get("secretAccessKey"),
+        sts_token.get("sessionToken"),
+    )
+    bucket = sts_token.get("bucketName", "")
+    key = sts_token.get("key", "")
+    file_size = os.path.getsize(local_path)
+    chunk_size_mb = int(os.environ.get("OCEAN_UPLOAD_CHUNK_SIZE_MB", 5))
+    thread_num = int(os.environ.get("OCEAN_UPLOAD_THREAD_NUM", os.cpu_count() or 4))
+    part_size = chunk_size_mb * 1024 * 1024
+    total_parts = (file_size + part_size - 1) // part_size
+
+    click.echo(f"  (STS multipart: {total_parts} parts, {chunk_size_mb}MB each, {thread_num} threads)")
+
+    # 1. Initiate
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    upload_id = client.initiate_multipart_upload(bucket, key)
+
+    # 2. Upload parts in parallel with progress
+    part_list = []
+    with ColoredTqdm(
+        total=file_size,
+        unit="B",
+        unit_scale=True,
+        desc=f"  ☁️  [STS] {desc}",
+        leave=False,
+    ) as pbar:
+        with ThreadPoolExecutor(max_workers=thread_num) as pool:
+            fut_to_part = {}
+            offset = 0
+            for pn in range(1, total_parts + 1):
+                sz = min(part_size, file_size - offset)
+                fut = pool.submit(
+                    client.upload_part_from_file,
+                    bucket,
+                    key,
+                    upload_id,
+                    pn,
+                    sz,
+                    local_path,
+                    offset,
+                )
+                fut_to_part[fut] = (pn, sz)
+                offset += sz
+
+            for fut in as_completed(fut_to_part):
+                etag = fut.result()
+                pn, sz = fut_to_part[fut]
+                part_list.append({"partNumber": pn, "eTag": etag.strip('"')})
+                pbar.update(sz)
+
+    # 3. Complete
+    part_list.sort(key=lambda x: x["partNumber"])
+    client.complete_multipart_upload(bucket, key, upload_id, part_list)
 
 
 # ── LFS flow ────────────────────────────────────────────────────────
