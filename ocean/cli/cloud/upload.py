@@ -6,32 +6,324 @@ Public API:
 
 CLI:
     ocean cloud upload user/repo /path/to/file.zip
+
+Design: ocean maintains its own BOS upload implementation decoupled from
+both ``aistudio-sdk`` and ``baidubce``. Large files are uploaded via
+direct HTTP/REST calls to BOS — no BCE SDK dependency.
 """
 
 import base64
 import hashlib
+import hmac
+import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote, urlparse
 
 import click
 import requests
 
 from ocean.cli.cloud import _config
 from ocean.cli.cloud.auth import get_token
+from ocean.utils.colored_tqdm import ColoredTqdm
 
 __all__ = ["upload"]
+
+# ── BOS signing helpers (BCE auth v1, no SDK dependency) ─────────────
+
+
+def _get_canonical_time(timestamp: int) -> str:
+    """Format timestamp → ``2025-01-15T12:00:00Z``."""
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp))
+
+
+def _normalize_string(s: str) -> str:
+    """Encode string with ``%XX`` for bytes > 127 and special chars."""
+    result = []
+    for b in s.encode("utf-8"):
+        if b in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~":
+            result.append(chr(b))
+        else:
+            result.append(f"%{b:02X}")
+    return "".join(result)
+
+
+def _bce_sign(
+    access_key: str,
+    secret_key: str,
+    http_method: str,
+    path: str,
+    headers: dict,
+    params: dict,
+    timestamp: Optional[int] = None,
+    expiration: int = 1800,
+) -> str:
+    """BCE Signature V1 — copied algorithm from ``baidubce.auth.bce_v1_signer``."""
+    if timestamp is None:
+        timestamp = int(time.time())
+
+    headers = {k.lower(): v for k, v in headers.items()}
+
+    # sign_key = HMAC-SHA256(secret, "bce-auth-v1/{ak}/{time}/{exp}")
+    sign_key_info = f"bce-auth-v1/{access_key}/{_get_canonical_time(timestamp)}/{expiration}"
+    sign_key = hmac.new(
+        secret_key.encode(),
+        sign_key_info.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    # canonical URI
+    canonical_uri = path
+
+    # canonical query string
+    sorted_params = sorted(params.items(), key=lambda x: x[0])
+    q_parts = []
+    for k, v in sorted_params:
+        k_enc = quote(k, safe="")
+        v_enc = quote(str(v), safe="") if v else ""
+        q_parts.append(f"{k_enc}={v_enc}")
+    canonical_querystring = "&".join(q_parts)
+
+    # canonical headers
+    signed_headers_set = {"host", "content-md5", "content-length", "content-type"}
+    bce_prefix = "x-bce-"
+    header_lines = []
+    for k, v in sorted(headers.items()):
+        if k.startswith(bce_prefix) or k in signed_headers_set:
+            header_lines.append(f"{_normalize_string(k)}:{_normalize_string(v)}")
+    canonical_headers = "\n".join(header_lines)
+
+    # string to sign
+    string_to_sign = f"{http_method}\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}"
+
+    # final signature
+    signature = hmac.new(
+        sign_key.encode(),
+        string_to_sign.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    # auth header value
+    auth = f"bce-auth-v1/{access_key}/{_get_canonical_time(timestamp)}/{expiration}//{signature}"
+    return auth
+
+
+# ── BOS REST client (no baidubce SDK) ────────────────────────────────
+
+
+class BosRestClient:
+    """Upload files to Baidu Object Storage via raw REST API.
+
+    Supports both regular PUT and multipart upload. Uses BCE auth V1
+    for request signing — no dependency on ``baidubce`` SDK.
+    """
+
+    def __init__(self, bos_host: str, access_key: str, secret_key: str, session_token: str):
+        if not bos_host.startswith("http"):
+            bos_host = "https://" + bos_host
+        self.bos_host = bos_host.rstrip("/")
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.session_token = session_token
+
+    def _headers(self, extra: Optional[dict] = None) -> dict:
+        h = {
+            "Host": urlparse(self.bos_host).netloc,
+            "x-bce-date": _get_canonical_time(int(time.time())),
+            "x-bce-security-token": self.session_token,
+        }
+        if extra:
+            h.update(extra)
+        return h
+
+    def _sign_and_send(
+        self,
+        method: str,
+        bucket: str,
+        key: str,
+        body=None,
+        params: Optional[dict] = None,
+    ) -> requests.Response:
+        # key may contain slashes (e.g. "lfs/c3/63/..."), preserve them in path
+        path = f"/{quote(bucket, safe='')}/{quote(key, safe='/')}"
+        headers = self._headers()
+        if body is not None:
+            headers["Content-Type"] = "application/octet-stream"
+
+        params = params or {}
+        auth = _bce_sign(
+            self.access_key,
+            self.secret_key,
+            method,
+            path,
+            headers | {"Host": headers["Host"]},
+            params,
+        )
+        headers["Authorization"] = auth
+        url = f"{self.bos_host}{path}"
+        if params:
+            qs = "&".join(f"{quote(k, safe='')}={quote(str(v), safe='')}" for k, v in sorted(params.items()))
+            url = f"{url}?{qs}"
+        resp = requests.request(method, url, headers=headers, data=body, timeout=7200)
+        return resp
+
+    def initiate_multipart(self, bucket: str, key: str) -> str:
+        """POST /{bucket}/{key}?uploads → return upload_id."""
+        resp = self._sign_and_send("POST", bucket, key, params={"uploads": ""})
+        resp.raise_for_status()
+        # Response is XML: <InitiateMultipartUploadResult><uploadId>...</uploadId></InitiateMultipartUploadResult>
+        import xml.etree.ElementTree as ET
+
+        return ET.fromstring(resp.text).findtext("uploadId")
+
+    def upload_part(self, bucket: str, key: str, upload_id: str, part_number: int, data: bytes) -> str:
+        """PUT /{bucket}/{key}?partNumber=N&uploadId=ID → return ETag."""
+        params = {"partNumber": part_number, "uploadId": upload_id}
+        headers = self._headers({"Content-Length": str(len(data))})
+        path = f"/{quote(bucket, safe='')}/{quote(key, safe='/')}"
+        auth = _bce_sign(
+            self.access_key,
+            self.secret_key,
+            "PUT",
+            path,
+            headers | {"Host": headers["Host"]},
+            params,
+        )
+        headers["Authorization"] = auth
+        qs = "&".join(f"{quote(k, safe='')}={quote(str(v), safe='')}" for k, v in sorted(params.items()))
+        url = f"{self.bos_host}{path}?{qs}"
+
+        resp = requests.put(url, headers=headers, data=data, timeout=7200)
+        resp.raise_for_status()
+        return resp.headers.get("ETag", "").strip('"')
+
+    def complete_multipart(self, bucket: str, key: str, upload_id: str, parts: list) -> None:
+        """POST /{bucket}/{key}?uploadId=ID with parts list → complete."""
+        body = json.dumps({"parts": [{"partNumber": p["partNumber"], "eTag": p["eTag"]} for p in parts]})
+        resp = self._sign_and_send("POST", bucket, key, body=body, params={"uploadId": upload_id})
+        resp.raise_for_status()
+
+    def abort_multipart(self, bucket: str, key: str, upload_id: str) -> None:
+        """DELETE /{bucket}/{key}?uploadId=ID → abort."""
+        resp = self._sign_and_send("DELETE", bucket, key, params={"uploadId": upload_id})
+        resp.raise_for_status()
+
+    def put_object(self, bucket: str, key: str, local_path: str) -> None:
+        """Regular PUT of a file to BOS."""
+        file_size = os.path.getsize(local_path)
+        path = f"/{quote(bucket, safe='')}/{quote(key, safe='/')}"
+        initial_headers = self._headers({"Content-Length": str(file_size), "Content-Type": "application/octet-stream"})
+        auth = _bce_sign(
+            self.access_key,
+            self.secret_key,
+            "PUT",
+            path,
+            initial_headers | {"Host": initial_headers["Host"]},
+            {},
+        )
+        initial_headers["Authorization"] = auth
+        url = f"{self.bos_host}{path}"
+
+        def _iter_upload():
+            with open(local_path, "rb") as f:
+                with ColoredTqdm(
+                    total=file_size,
+                    unit="B",
+                    unit_scale=True,
+                    desc=f"  ☁️  {os.path.basename(local_path)}",
+                    leave=False,
+                ) as pbar:
+                    while True:
+                        chunk = f.read(8 * 1024 * 1024)
+                        if not chunk:
+                            break
+                        yield chunk
+                        pbar.update(len(chunk))
+
+        resp = requests.put(url, headers=initial_headers, data=_iter_upload(), timeout=7200)
+        resp.raise_for_status()
+
+    def put_super_object(
+        self, bucket: str, key: str, local_path: str, chunk_size_mb: int = 5, thread_num: Optional[int] = None
+    ) -> None:
+        """Multipart upload (split + parallel parts + complete).
+
+        Algorithm matches ``baidubce.services.bos.bos_client.BosClient.put_super_obejct_from_file``,
+        but implemented via direct REST API calls — no SDK dependency.
+        """
+        file_size = os.path.getsize(local_path)
+        part_size = chunk_size_mb * 1024 * 1024
+        total_parts = (file_size + part_size - 1) // part_size
+
+        # Initiate
+        upload_id = self.initiate_multipart(bucket, key)
+        click.echo(f"    Multipart: initiated upload_id={upload_id}, {total_parts} parts")
+
+        # Upload parts in parallel
+        if thread_num is None:
+            thread_num = os.cpu_count() or 4
+
+        part_list = []
+
+        def _upload_single_part(part_number: int, offset: int, size: int):
+            with open(local_path, "rb") as f:
+                f.seek(offset)
+                data = f.read(size)
+            etag = self.upload_part(bucket, key, upload_id, part_number, data)
+            return {"partNumber": part_number, "eTag": etag, "size": size}
+
+        with ColoredTqdm(
+            total=file_size,
+            unit="B",
+            unit_scale=True,
+            desc=f"  ☁️  {os.path.basename(local_path)}",
+            leave=False,
+        ) as pbar:
+            with ThreadPoolExecutor(max_workers=thread_num) as pool:
+                futures = []
+                offset = 0
+                for part_number in range(1, total_parts + 1):
+                    size = min(part_size, file_size - offset)
+                    futures.append(pool.submit(_upload_single_part, part_number, offset, size))
+                    offset += size
+
+                for future in as_completed(futures):
+                    result = future.result()
+                    part_list.append(result)
+                    pbar.update(result["size"])
+
+        # Sort by part number
+        part_list.sort(key=lambda x: x["partNumber"])
+
+        if len(part_list) != total_parts:
+            self.abort_multipart(bucket, key, upload_id)
+            raise click.ClickException(f"Multipart upload aborted: expected {total_parts} parts, got {len(part_list)}")
+
+        # Complete
+        self.complete_multipart(bucket, key, upload_id, part_list)
+        click.echo(f"    Multipart: completed ({total_parts} parts)")
 
 
 # ── helpers ──────────────────────────────────────────────────────────
 
 
-def _sha256(filepath: str) -> str:
+def _sha256(filepath: str, desc: str = "") -> str:
     h = hashlib.sha256()
+    file_size = os.path.getsize(filepath)
     with open(filepath, "rb") as f:
-        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
-            h.update(chunk)
+        with ColoredTqdm(
+            total=file_size,
+            unit="B",
+            unit_scale=True,
+            desc=f"  🔑 {desc}" if desc else "  🔑 SHA256",
+            leave=False,
+        ) as pbar:
+            for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+                h.update(chunk)
+                pbar.update(len(chunk))
     return h.hexdigest()
 
 
@@ -45,11 +337,16 @@ def _header_fill(token: str, extra: Optional[dict] = None) -> dict:
     return h
 
 
-def _git_api(method: str, path: str, token: str, data=None) -> dict:
+def _git_api(method: str, path: str, token: str, data=None, content_type: Optional[str] = None) -> dict:
     """Call AI Studio Gitea API."""
     host = os.getenv("STUDIO_GIT_HOST", _config.GIT_HOST)
     url = f"{host}{path}"
-    resp = requests.request(method, url, headers=_header_fill(token), json=data, timeout=30)
+    headers = _header_fill(token)
+    if content_type:
+        headers["Content-Type"] = content_type
+        headers["Accept"] = content_type
+    body = json.dumps(data) if data is not None else None
+    resp = requests.request(method, url, headers=headers, data=body, timeout=30)
     if resp.status_code in (200, 201):
         return resp.json()
     raise click.ClickException(f"Git API error [{resp.status_code}]: {resp.text[:200]}")
@@ -57,80 +354,40 @@ def _git_api(method: str, path: str, token: str, data=None) -> dict:
 
 def _check_file_exists(repo_id: str, path_in_repo: str, revision: str, token: str):
     """Check if a file exists in the repo, return sha if it does."""
-    resp = _git_api(
-        "GET",
-        f"/api/v1/repos/{repo_id}/contents/{path_in_repo}?ref={revision}",
-        token,
-    )
-    if isinstance(resp, dict) and "sha" in resp:
-        return resp["sha"]
+    host = os.getenv("STUDIO_GIT_HOST", _config.GIT_HOST)
+    url = f"{host}/api/v1/repos/{repo_id}/contents/{path_in_repo}?ref={revision}"
+    resp = requests.get(url, headers=_header_fill(token), timeout=30)
+    if resp.status_code == 200:
+        data = resp.json()
+        if isinstance(data, dict) and "sha" in data:
+            return data["sha"]
     return None
 
 
-# ── BOS upload with fixed LFS bug ────────────────────────────────────
+# ── LFS flow (BOS via direct REST, no BCE SDK) ───────────────────────
 
 
-class _BosUploader:
-    """Upload large files to Baidu Object Storage (BOS), used by AI Studio LFS."""
-
-    def __init__(self, sts_token: dict):
-        from baidubce.auth.bce_credentials import BceCredentials
-        from baidubce.bce_client_configuration import BceClientConfiguration
-        from baidubce.services.bos.bos_client import BosClient
-
-        config = BceClientConfiguration(
-            credentials=BceCredentials(
-                sts_token["access_key_id"],
-                sts_token["secret_access_key"],
-            ),
-            endpoint=sts_token["bos_host"],
-            security_token=sts_token["session_token"],
-        )
-        self.client = BosClient(config)
-
-    def upload_super(self, filepath: str, bucket: str, key: str) -> bool:
-        """Upload a large file via multipart upload.
-
-        Note: the upstream AI Studio SDK has a typo in BOS SDK method name
-        (``put_super_obejct_from_file`` missing the 'c' in 'object'), which
-        causes ``'super' object has no attribute 'put_super_obejct_from_file'``.
-        This implementation uses the correct API directly.
-        """
-        chunk_size_mb = int(os.environ.get("OCEAN_UPLOAD_CHUNK_SIZE_MB", 5))
-        thread_num = os.environ.get("OCEAN_UPLOAD_THREAD_NUM", None)
-
-        self.client.put_super_object_from_file(
-            bucket,
-            key,
-            str(filepath),
-            chunk_size=chunk_size_mb,
-            thread_num=int(thread_num) if thread_num else None,
-        )
-        return True
-
-    def upload_regular(self, filepath: str, bucket: str, key: str) -> bool:
-        """Upload a regular file."""
-        self.client.put_object_from_file(bucket, key, str(filepath))
-        return True
-
-
-# ── LFS flow ──────────────────────────────────────────────────────────
-
-
-def _lfs_upload_file(repo_id: str, path_in_repo: str, local_path: str, revision: str, token: str):
+def _lfs_upload_file(
+    repo_id: str,
+    path_in_repo: str,
+    local_path: str,
+    revision: str,
+    token: str,
+    commit_message: Optional[str] = None,
+):
     """Upload a single LFS file to AI Studio.
 
     Flow:
         1. Compute SHA256 + size
-        2. Call preupload API to get STS token
-        3. Upload file content to BOS
+        2. Call LFS batch API → get STS token or upload_href
+        3. Upload to BOS (multipart with STS, or simple PUT to href)
         4. Upload LFS pointer to Gitea
     """
     file_size = os.path.getsize(local_path)
     sha = _sha256(local_path)
     user_name, repo_name = repo_id.split("/")
 
-    # Step 1: Get upload access (STS token)
+    # Step 1: Get upload access (LFS batch API needs ``vnd.git-lfs+json`` Content-Type)
     resp = _git_api(
         "POST",
         f"/{user_name}/{repo_name}.git/info/lfs/objects/batch",
@@ -142,6 +399,7 @@ def _lfs_upload_file(repo_id: str, path_in_repo: str, local_path: str, revision:
             "ref": {"name": f"refs/heads/{revision}"},
             "hash_algo": "sha256",
         },
+        content_type="application/vnd.git-lfs+json",
     )
 
     if not resp.get("objects"):
@@ -150,60 +408,98 @@ def _lfs_upload_file(repo_id: str, path_in_repo: str, local_path: str, revision:
 
     obj = resp["objects"][0]
     actions = obj.get("actions", {})
-    if not actions:
-        click.echo(f"  ⏭️  {path_in_repo}: already exists on remote (same hash).")
-        return
 
-    upload_info = actions["upload"]
-    upload_href = upload_info["href"]
+    if actions:
+        upload_info = actions["upload"]
+        upload_href = upload_info.get("href", "")
+        sts_token = upload_info.get("sts_token", {})
 
-    # Step 2: Upload to BOS
-    click.echo(f"  ☁️  Uploading {path_in_repo} ({file_size / 1024 / 1024:.1f} MB)...")
+        # Step 2: Upload file content to BOS
+        desc = f"{path_in_repo} ({file_size / 1024 / 1024:.1f} MB)"
 
-    sts_token = upload_info.get("sts_token", {})
-    if sts_token and sts_token.get("accessKeyId"):
-        # Parse STS token keys (camelCase from API → snake_case for client)
-        parsed = {
-            "bos_host": sts_token.get("bosHost"),
-            "bucket_name": sts_token.get("bucketName"),
-            "key": sts_token.get("key"),
-            "access_key_id": sts_token.get("accessKeyId"),
-            "secret_access_key": sts_token.get("secretAccessKey"),
-            "session_token": sts_token.get("sessionToken"),
-        }
-        uploader = _BosUploader(parsed)
-        uploader.upload_super(local_path, parsed["bucket_name"], parsed["key"])
-    else:
-        # Fallback: HTTP PUT direct to BOS
-        with open(local_path, "rb") as f:
-            r = requests.put(
+        if sts_token and sts_token.get("bosHost"):
+            file_size_mb = file_size / 1024 / 1024
+            if file_size_mb > 5 * 1024:  # > 5GB needs multipart
+                bos = BosRestClient(
+                    bos_host=sts_token["bosHost"],
+                    access_key=sts_token["accessKeyId"],
+                    secret_key=sts_token["secretAccessKey"],
+                    session_token=sts_token["sessionToken"],
+                )
+                bucket = sts_token.get("bucketName", "")
+                key = sts_token.get("key", "")
+                chunk_size_mb = int(os.environ.get("OCEAN_UPLOAD_CHUNK_SIZE_MB", 5))
+                thread_num = os.environ.get("OCEAN_UPLOAD_THREAD_NUM", None)
+                thread_num = int(thread_num) if thread_num else None
+                bos.put_super_object(bucket, key, local_path, chunk_size_mb=chunk_size_mb, thread_num=thread_num)
+            else:
+
+                def _iter_upload():
+                    with open(local_path, "rb") as f:
+                        with ColoredTqdm(
+                            total=file_size,
+                            unit="B",
+                            unit_scale=True,
+                            desc=f"  ☁️  {desc}",
+                            leave=False,
+                        ) as pbar:
+                            while True:
+                                chunk = f.read(8 * 1024 * 1024)
+                                if not chunk:
+                                    break
+                                yield chunk
+                                pbar.update(len(chunk))
+
+                resp2 = requests.put(
+                    upload_href,
+                    data=_iter_upload(),
+                    headers={"Content-Type": "application/octet-stream"},
+                    timeout=7200,
+                )
+                resp2.raise_for_status()
+        else:
+
+            def _iter_upload():
+                with open(local_path, "rb") as f:
+                    with ColoredTqdm(
+                        total=file_size,
+                        unit="B",
+                        unit_scale=True,
+                        desc=f"  ☁️  {desc}",
+                        leave=False,
+                    ) as pbar:
+                        while True:
+                            chunk = f.read(8 * 1024 * 1024)
+                            if not chunk:
+                                break
+                            yield chunk
+                            pbar.update(len(chunk))
+
+            resp2 = requests.put(
                 upload_href,
-                data=f,
+                data=_iter_upload(),
                 headers={"Content-Type": "application/octet-stream"},
-                timeout=3600,
+                timeout=7200,
             )
-        r.raise_for_status()
+            resp2.raise_for_status()
+    else:
+        click.echo(f"  ⏭️  {path_in_repo}: content already exists on remote (reusing hash).")
 
-    # Step 3: Upload LFS pointer to Gitea
+    # Step 3: Upload LFS pointer to Gitea (needed even when content already exists)
     pointer_content = f"version https://git-lfs.github.com/spec/v1\noid sha256:{sha}\nsize {file_size}\n"
     pointer_b64 = base64.b64encode(pointer_content.encode()).decode()
 
     existing_sha = _check_file_exists(repo_id, path_in_repo, revision, token)
     method = "PUT" if existing_sha else "POST"
-    payload = (
-        {
-            "branch": revision,
-            "content": pointer_b64,
-            "lfsPointer": True,
-            "sha": existing_sha,
-        }
-        if existing_sha
-        else {
-            "branch": revision,
-            "content": pointer_b64,
-            "lfsPointer": True,
-        }
-    )
+    payload = {
+        "branch": revision,
+        "content": pointer_b64,
+        "lfsPointer": True,
+    }
+    if existing_sha:
+        payload["sha"] = existing_sha
+    if commit_message:
+        payload["message"] = commit_message
 
     _git_api(method, f"/api/v1/repos/{repo_id}/contents/{path_in_repo}", token, data=payload)
     click.echo(f"  ✅ {path_in_repo} uploaded.")
@@ -212,55 +508,54 @@ def _lfs_upload_file(repo_id: str, path_in_repo: str, local_path: str, revision:
 # ── Regular file flow ────────────────────────────────────────────────
 
 
-def _regular_upload_file(repo_id: str, path_in_repo: str, local_path: str, revision: str, token: str):
+def _regular_upload_file(
+    repo_id: str,
+    path_in_repo: str,
+    local_path: str,
+    revision: str,
+    token: str,
+    commit_message: Optional[str] = None,
+):
     """Upload a small file (non-LFS) via Gitea API."""
     with open(local_path, "rb") as f:
         content_b64 = base64.b64encode(f.read()).decode()
 
     existing_sha = _check_file_exists(repo_id, path_in_repo, revision, token)
     method = "PUT" if existing_sha else "POST"
-    payload = (
-        {
-            "branch": revision,
-            "content": content_b64,
-            "lfs": False,
-            "sha": existing_sha,
-        }
-        if existing_sha
-        else {
-            "branch": revision,
-            "content": content_b64,
-            "lfs": False,
-        }
-    )
+    payload = {
+        "branch": revision,
+        "content": content_b64,
+        "lfs": False,
+    }
+    if existing_sha:
+        payload["sha"] = existing_sha
+    if commit_message:
+        payload["message"] = commit_message
 
     _git_api(method, f"/api/v1/repos/{repo_id}/contents/{path_in_repo}", token, data=payload)
 
 
-# ── Main upload command ──────────────────────────────────────────────
+# ── Main upload dispatch ─────────────────────────────────────────────
 
 
-def _upload_item(repo_id, path_in_repo, local_path, revision, token):
+def _upload_item(
+    repo_id: str,
+    path_in_repo: str,
+    local_path: str,
+    revision: str,
+    token: str,
+    commit_message: Optional[str] = None,
+):
     """Upload a single file, choosing LFS or regular flow."""
     file_size = os.path.getsize(local_path)
 
-    # Preupload check: is this file LFS?
-    user_name, repo_name = repo_id.split("/")
-    preupload_resp = _git_api(
-        "POST",
-        f"/{user_name}/{repo_name}/preupload/{revision}",
-        token,
-        data={"files": [{"path": path_in_repo}]},
-    )
+    # Files larger than 5MB go through LFS. Small files use Gitea API directly.
+    is_lfs = file_size > int(os.environ.get("OCEAN_UPLOAD_LFS_THRESHOLD", 5 * 1024 * 1024))
 
-    is_lfs = False
-    if isinstance(preupload_resp, dict) and preupload_resp.get("files") and len(preupload_resp["files"]) > 0:
-        is_lfs = preupload_resp["files"][0].get("lfs", False)
-
-    if is_lfs or file_size > 5 * 1024 * 1024:
-        _lfs_upload_file(repo_id, path_in_repo, local_path, revision, token)
+    if is_lfs:
+        _lfs_upload_file(repo_id, path_in_repo, local_path, revision, token, commit_message)
     else:
-        _regular_upload_file(repo_id, path_in_repo, local_path, revision, token)
+        _regular_upload_file(repo_id, path_in_repo, local_path, revision, token, commit_message)
 
 
 @click.command()
@@ -384,17 +679,29 @@ def upload_folder(
                 rel = f.relative_to(p).as_posix()
                 items.append((prefix + rel, str(f)))
 
-    print(f"  Uploading {len(items)} file(s) to {repo_id}...")
+    click.echo(f"  Uploading {len(items)} file(s) to {repo_id}...")
+    errors = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(_upload_item, repo_id, path_in_repo, local_path, revision, token): (
-                path_in_repo,
-                local_path,
+        fut_to_item = {
+            pool.submit(_upload_item, repo_id, rel_path, abs_path, revision, token, commit_message): (
+                rel_path,
+                abs_path,
             )
-            for path_in_repo, local_path in items
+            for rel_path, abs_path in items
         }
-        for future in as_completed(futures):
-            pass  # exceptions are raised by the submitted task
+        for future in as_completed(fut_to_item):
+            rel_path, abs_path = fut_to_item[future]
+            try:
+                future.result()
+            except Exception as e:
+                click.echo(f"  ❌ {rel_path}: {e}")
+                errors.append((rel_path, str(e)))
 
-    print(f"  Done. Uploaded to {repo_id}")
+    if errors:
+        click.echo(f"\n  Done with {len(errors)} error(s):")
+        for rel_path, err in errors:
+            click.echo(f"    ❌ {rel_path}: {err}")
+        raise click.ClickException(f"{len(errors)} file(s) failed to upload.")
+    else:
+        click.echo(f"  ✅ Done. All files uploaded to {repo_id}")
