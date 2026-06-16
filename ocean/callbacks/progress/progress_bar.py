@@ -44,7 +44,7 @@ class TQDMProgressBar(ProgressBar):
 
     def on_train_epoch_start(self, trainer: Any, model: Any) -> None:
         try:
-            from ocean.utils.colored_tqdm import ColoredTqdm as tqdm
+            from ocean.utils.colored_tqdm import ColoredTqdm as tqdm  # noqa: N813
 
             total = self._get_total(trainer, "train")
             self._tqdm = tqdm(
