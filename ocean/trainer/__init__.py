@@ -99,6 +99,7 @@ class Trainer:
         logger: Any = None,
         enable_checkpointing: bool = True,
         enable_progress_bar: bool = True,
+        enable_model_summary: bool = True,
         default_root_dir: Optional[str] = None,
         verbose: int = 1,
         inference_mode: bool = True,
@@ -107,6 +108,9 @@ class Trainer:
         reload_dataloaders_every_n_epochs: int = 0,
         detect_anomaly: bool = False,
         barebones: bool = False,
+        sync_batchnorm: bool = False,
+        plugins: Optional[Any] = None,
+        enable_autolog_hparams: bool = True,
     ) -> None:
         # === Init with defaults ===
         if max_epochs is None:
@@ -136,6 +140,10 @@ class Trainer:
         self.num_sanity_val_steps = num_sanity_val_steps
         self.fast_dev_run = fast_dev_run
         self.overfit_batches = overfit_batches
+        self.enable_model_summary = enable_model_summary
+        self.sync_batchnorm = sync_batchnorm
+        self.plugins = plugins
+        self.enable_autolog_hparams = enable_autolog_hparams
         self.verbose = verbose
         self.inference_mode = inference_mode
         self.use_distributed_sampler = use_distributed_sampler
@@ -584,7 +592,8 @@ class Trainer:
         from ocean.trainer.call import _call_callback_hooks
 
         model.eval()
-        _call_callback_hooks(self, "on_validation_start", model)
+        _call_callback_hooks(self, "on_validation_start")
+        _call_callback_hooks(self, "on_sanity_check_start")
         for dataloader in self.val_dataloaders:
             count = 0
             with paddle.no_grad():
@@ -592,13 +601,12 @@ class Trainer:
                     if count >= self.num_sanity_val_steps:
                         break
                     batch = self._move_to_device(batch, device)
-                    _call_callback_hooks(self, "on_validation_batch_start", model, batch, batch_idx, dataloader_idx=0)
+                    _call_callback_hooks(self, "on_validation_batch_start", batch, batch_idx, dataloader_idx=0)
                     model.validation_step(batch, batch_idx)
-                    _call_callback_hooks(
-                        self, "on_validation_batch_end", model, None, batch, batch_idx, dataloader_idx=0
-                    )
+                    _call_callback_hooks(self, "on_validation_batch_end", None, batch, batch_idx, dataloader_idx=0)
                     count += 1
-        _call_callback_hooks(self, "on_validation_end", model)
+        _call_callback_hooks(self, "on_sanity_check_end")
+        _call_callback_hooks(self, "on_validation_end")
 
     def _teardown(self) -> None:
         self.strategy.teardown()

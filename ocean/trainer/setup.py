@@ -25,12 +25,7 @@ def _init_debugging_flags(
         trainer.num_sanity_val_steps = 0
 
     if overfit_batches:
-        n = overfit_batches if isinstance(overfit_batches, int) else 0.0
-        # If float, interpret as fraction of dataset
-        if isinstance(overfit_batches, float):
-            trainer.limit_train_batches = overfit_batches
-            trainer.limit_val_batches = overfit_batches
-        elif isinstance(overfit_batches, int):
+        if isinstance(overfit_batches, (int, float)):
             trainer.limit_train_batches = overfit_batches
             trainer.limit_val_batches = overfit_batches
         trainer.overfit_batches = overfit_batches

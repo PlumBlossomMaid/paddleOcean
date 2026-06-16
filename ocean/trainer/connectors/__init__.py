@@ -373,7 +373,16 @@ class _AcceleratorConnector:
             if benchmark is None:
                 benchmark = False
             elif benchmark:
-                print("Warning: deterministic=True and benchmark=True are incompatible")
+                import warnings
+
+                warnings.warn("deterministic=True is incompatible with benchmark=True")
+
+            # Set PaddlePaddle deterministic flags
+            try:
+                paddle.set_flags({"FLAGS_cudnn_deterministic": True})
+            except ValueError:
+                pass
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
         if benchmark is not None:
             try:
