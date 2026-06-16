@@ -61,30 +61,34 @@ class _FitLoop(_Loop):
 
                 # Training step
                 result = model.training_step(batch, batch_idx)
-                loss = (
-                    result["loss"]
-                    if isinstance(result, dict)
-                    else (result if isinstance(result, paddle.Tensor) else None)
-                )
 
-                if loss is not None:
-                    model.on_before_backward(loss)
-                    loss = loss / max(1, trainer.accumulate_grad_batches)
-                    loss.backward()
-                    model.on_after_backward()
-                    opt_acc += 1
+                # Skip automatic backward/optimizer when manual optimization is used
+                # (model handles backward and step inside training_step)
+                if model.automatic_optimization:
+                    loss = (
+                        result["loss"]
+                        if isinstance(result, dict)
+                        else (result if isinstance(result, paddle.Tensor) else None)
+                    )
 
-                    if opt_acc >= trainer.accumulate_grad_batches:
-                        if trainer.gradient_clip_val is not None and trainer.gradient_clip_val > 0:
-                            if trainer.gradient_clip_algorithm == "norm":
-                                paddle.nn.utils.clip_grad_norm_(model.parameters(), trainer.gradient_clip_val)
-                            elif trainer.gradient_clip_algorithm == "value":
-                                paddle.nn.utils.clip_grad_value_(model.parameters(), trainer.gradient_clip_val)
-                        model.on_before_optimizer_step(trainer._optimizer)
-                        trainer._optimizers[0].step()
-                        trainer._optimizers[0]._optimizer.clear_grad()
-                        opt_acc = 0
-                        trainer._dataloader_step += 1
+                    if loss is not None:
+                        model.on_before_backward(loss)
+                        loss = loss / max(1, trainer.accumulate_grad_batches)
+                        loss.backward()
+                        model.on_after_backward()
+                        opt_acc += 1
+
+                        if opt_acc >= trainer.accumulate_grad_batches:
+                            if trainer.gradient_clip_val is not None and trainer.gradient_clip_val > 0:
+                                if trainer.gradient_clip_algorithm == "norm":
+                                    paddle.nn.utils.clip_grad_norm_(model.parameters(), trainer.gradient_clip_val)
+                                elif trainer.gradient_clip_algorithm == "value":
+                                    paddle.nn.utils.clip_grad_value_(model.parameters(), trainer.gradient_clip_val)
+                            model.on_before_optimizer_step(trainer._optimizer)
+                            trainer._optimizers[0].step()
+                            trainer._optimizers[0]._optimizer.clear_grad()
+                            opt_acc = 0
+                            trainer._dataloader_step += 1
 
                 model.on_train_batch_end(result, batch, batch_idx)
 
