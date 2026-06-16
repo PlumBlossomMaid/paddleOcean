@@ -46,6 +46,13 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
+# Suppress PIR "blocking not supported" false positive (static graph .cpu())
+warnings.filterwarnings(
+    "ignore",
+    message="blocking is not supported.*",
+    category=UserWarning,
+)
+
 # ====================================================================
 # Auto device detection — set best available device on import
 # ====================================================================
