@@ -89,6 +89,9 @@ class _FitLoop(_Loop):
                             trainer._optimizers[0]._optimizer.clear_grad()
                             opt_acc = 0
                             trainer._dataloader_step += 1
+                else:
+                    # Manual optimization: model handles backward/step, just count steps
+                    trainer._dataloader_step += 1
 
                 model.on_train_batch_end(result, batch, batch_idx)
 
