@@ -36,7 +36,7 @@ class ProgressBar(Callback):
 
 
 class TQDMProgressBar(ProgressBar):
-    """Progress bar using tqdm."""
+    """Progress bar using ColoredTqdm (rainbow)."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -44,16 +44,26 @@ class TQDMProgressBar(ProgressBar):
 
     def on_train_epoch_start(self, trainer: Any, model: Any) -> None:
         try:
-            from tqdm import tqdm
+            from ocean.utils.colored_tqdm import ColoredTqdm as tqdm
 
             total = self._get_total(trainer, "train")
-            self._tqdm = tqdm(total=total, desc=f"Epoch {trainer.current_epoch + 1}", leave=True, unit="batch")
+            self._tqdm = tqdm(
+                total=total,
+                desc=f"Epoch {trainer.current_epoch}",
+                leave=True,
+                unit="batch",
+                ncols=120,
+            )
         except ImportError:
             self._tqdm = None
 
     def on_train_batch_end(self, trainer: Any, model: Any, outputs: Any, batch: Any, batch_idx: int) -> None:
         if self._tqdm is not None:
             self._tqdm.update(1)
+            # Show latest metrics in progress bar (DiffSinger style)
+            metrics = trainer.callback_metrics
+            if metrics:
+                self._tqdm.set_postfix(**{k: f"{v:.4f}" for k, v in metrics.items()}, refresh=False)
 
     def on_train_epoch_end(self, trainer: Any, model: Any) -> None:
         if self._tqdm is not None:
