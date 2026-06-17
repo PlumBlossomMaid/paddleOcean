@@ -39,6 +39,10 @@ class _FitLoop(_Loop):
         _call_module_hook(trainer, "on_train_start")
         _call_callback_hooks(trainer, "on_train_start")
 
+        # Log initial state at step 0 (0 % log_every_n_steps == 0)
+        if trainer.log_every_n_steps > 0:
+            trainer._logger_connector.log_metrics(trainer.logged_metrics, trainer.dataloader_step)
+
         device = trainer._resolve_device()
 
         while not self.done:
