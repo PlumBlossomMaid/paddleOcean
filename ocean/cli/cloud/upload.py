@@ -35,6 +35,43 @@ from ocean.utils.colored_tqdm import ColoredTqdm
 # Gitea returns 500 under concurrent requests; serialize all API calls.
 _gitea_lock = threading.Lock()
 
+# ── Retryable network exceptions ────────────────────────────────────
+_RETRYABLE_EXCEPTIONS = (
+    requests.exceptions.Timeout,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.SSLError,
+)
+
+
+def _retry_call(fn, max_retries=3, desc=""):
+    """Retry a callable with exponential backoff.
+
+    Only retries for network-level errors (timeout / connection / SSL).
+    Follows the pattern in ``_sts_multipart_upload._upload_with_retry``.
+
+    Args:
+        fn: Zero-argument callable to retry.
+        max_retries: Maximum retry attempts (default 3).
+        desc: Description for progress messages.
+
+    Returns:
+        The return value of ``fn()`` on success.
+
+    Raises:
+        The last exception if all retries are exhausted.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            return fn()
+        except _RETRYABLE_EXCEPTIONS:
+            if attempt < max_retries:
+                wait = min(2**attempt, 30)
+                click.echo(f"    ⚠️  {desc} (attempt {attempt}/{max_retries}), retry in {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
+
+
 __all__ = ["upload"]
 
 # ── BOS signing helpers (BCE auth v1, no SDK dependency) ─────────────
@@ -343,7 +380,11 @@ def _header_fill(token: str, extra: Optional[dict] = None) -> dict:
 
 
 def _git_api(method: str, path: str, token: str, data=None, content_type: Optional[str] = None) -> dict:
-    """Call AI Studio Gitea API (serialized via module-level lock)."""
+    """Call AI Studio Gitea API (serialized via module-level lock).
+
+    Retries on network errors (timeout / connection / SSL) and transient
+    500 responses, matching the backoff pattern in ``_sts_multipart_upload``.
+    """
     host = os.getenv("STUDIO_GIT_HOST", _config.GIT_HOST)
     url = f"{host}{path}"
     headers = _header_fill(token)
@@ -351,56 +392,85 @@ def _git_api(method: str, path: str, token: str, data=None, content_type: Option
         headers["Content-Type"] = content_type
         headers["Accept"] = content_type
     body = json.dumps(data) if data is not None else None
-    with _gitea_lock:
-        resp = requests.request(method, url, headers=headers, data=body, timeout=30)
-    if resp.status_code in (200, 201):
-        return resp.json()
-    raise click.ClickException(f"Git API error [{resp.status_code}]: {resp.text[:200]}")
+
+    for attempt in range(1, 4):
+        try:
+            with _gitea_lock:
+                resp = requests.request(method, url, headers=headers, data=body, timeout=60)
+        except _RETRYABLE_EXCEPTIONS as e:
+            if attempt < 3:
+                wait = min(2**attempt, 30)
+                click.echo(f"    ⚠️  Gitea {method} (attempt {attempt}/3 — {type(e).__name__}), retry in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise click.ClickException(f"Git API timeout (retries exhausted): {e}")
+
+        if resp.status_code in (200, 201):
+            return resp.json()
+
+        if resp.status_code == 500 and attempt < 3:
+            wait = min(2**attempt, 30)
+            click.echo(f"    ⚠️  Gitea {method} 500 (attempt {attempt}/3), retry in {wait}s...")
+            time.sleep(wait)
+            continue
+
+        raise click.ClickException(f"Git API error [{resp.status_code}]: {resp.text[:200]}")
 
 
 def _check_file_exists(repo_id: str, path_in_repo: str, revision: str, token: str):
     """Check if a file exists in the repo, return sha if it does."""
     host = os.getenv("STUDIO_GIT_HOST", _config.GIT_HOST)
     url = f"{host}/api/v1/repos/{repo_id}/contents/{path_in_repo}?ref={revision}"
-    with _gitea_lock:
-        resp = requests.get(url, headers=_header_fill(token), timeout=30)
-    if resp.status_code == 200:
-        data = resp.json()
-        if isinstance(data, dict) and "sha" in data:
-            return data["sha"]
-    return None
+
+    def _query():
+        with _gitea_lock:
+            resp = requests.get(url, headers=_header_fill(token), timeout=60)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict) and "sha" in data:
+                return data["sha"]
+        return None
+
+    return _retry_call(_query, desc=f"check exists {path_in_repo}")
 
 
 # ── BOS upload helpers ──────────────────────────────────────────────
 
 
 def _http_put(url: str, local_path: str, desc: str) -> None:
-    """Upload a file to BOS via streaming HTTP PUT."""
+    """Upload a file to BOS via streaming HTTP PUT.
+
+    Retries on network errors (timeout / connection / SSL) with
+    exponential backoff up to 3 attempts.
+    """
     file_size = os.path.getsize(local_path)
 
-    def _iter_upload():
-        with open(local_path, "rb") as f:
-            with ColoredTqdm(
-                total=file_size,
-                unit="B",
-                unit_scale=True,
-                desc=f"  ☁️  {desc}",
-                leave=False,
-            ) as pbar:
-                while True:
-                    chunk = f.read(8 * 1024 * 1024)
-                    if not chunk:
-                        break
-                    yield chunk
-                    pbar.update(len(chunk))
+    def _do_upload():
+        def _iter_upload():
+            with open(local_path, "rb") as f:
+                with ColoredTqdm(
+                    total=file_size,
+                    unit="B",
+                    unit_scale=True,
+                    desc=f"  ☁️  {desc}",
+                    leave=False,
+                ) as pbar:
+                    while True:
+                        chunk = f.read(8 * 1024 * 1024)
+                        if not chunk:
+                            break
+                        yield chunk
+                        pbar.update(len(chunk))
 
-    resp = requests.put(
-        url,
-        data=_iter_upload(),
-        headers={"Content-Type": "application/octet-stream"},
-        timeout=7200,
-    )
-    resp.raise_for_status()
+        resp = requests.put(
+            url,
+            data=_iter_upload(),
+            headers={"Content-Type": "application/octet-stream"},
+            timeout=7200,
+        )
+        resp.raise_for_status()
+
+    _retry_call(_do_upload, desc=f"BOS PUT {desc}")
 
 
 def _sts_multipart_upload(sts_token: dict, local_path: str, desc: str) -> None:
