@@ -16,13 +16,21 @@ import paddle
 import ocean
 
 
-def from_compiled(model: "ocean.Model") -> "ocean.Model":
+def from_compiled(
+    model: "ocean.Model",
+    full_graph: bool = False,
+    input_spec=None,
+) -> "ocean.Model":
     """Apply ``paddle.jit.to_static`` to the model's key methods.
 
     Wraps forward and step methods with static graph compilation to accelerate training.
 
     Args:
         model: An ``ocean.Model`` instance.
+        full_graph: If True, compile the entire graph. Set True when
+            using ``input_spec`` for shape/type annotation.
+        input_spec: Optional list of ``InputSpec`` for shape inference.
+            Requires ``full_graph=True``.
 
     Returns:
         The same model instance with compiled methods.
@@ -39,11 +47,18 @@ def from_compiled(model: "ocean.Model") -> "ocean.Model":
         "original_predict_step": model.predict_step,
     }
 
-    model.forward = paddle.jit.to_static(model.forward)
-    model.training_step = paddle.jit.to_static(model.training_step)
-    model.validation_step = paddle.jit.to_static(model.validation_step)
-    model.test_step = paddle.jit.to_static(model.test_step)
-    model.predict_step = paddle.jit.to_static(model.predict_step)
+    # Only pass input_spec when full_graph=True (Paddle requirement)
+    compile_kwargs = {}
+    if full_graph:
+        compile_kwargs["full_graph"] = True
+    if input_spec is not None:
+        compile_kwargs["input_spec"] = input_spec
+
+    model.forward = paddle.jit.to_static(model.forward, **compile_kwargs)
+    model.training_step = paddle.jit.to_static(model.training_step, **compile_kwargs)
+    model.validation_step = paddle.jit.to_static(model.validation_step, **compile_kwargs)
+    model.test_step = paddle.jit.to_static(model.test_step, **compile_kwargs)
+    model.predict_step = paddle.jit.to_static(model.predict_step, **compile_kwargs)
 
     object.__setattr__(model, "_compiler_ctx", _compiler_ctx)
     return model

@@ -131,18 +131,24 @@ class Model(nn.Layer):
     # JIT Compile (paddle.jit.to_static)
     # ====================================================================
 
-    def compile(self) -> "Model":
+    def compile(self, full_graph: bool = False, input_spec=None) -> "Model":
         """Apply ``paddle.jit.to_static`` to accelerate training.
 
         Wraps forward and step methods with static graph compilation.
         Call before passing to ``Trainer.fit()``.
+
+        Args:
+            full_graph: If True, compile the entire graph. Set True when
+                using ``input_spec`` for shape inference.
+            input_spec: Optional list of ``InputSpec`` for shape/type
+                annotation. Requires ``full_graph=True``.
 
         Returns:
             self, with compiled methods.
         """
         from ocean.utilities.compile import from_compiled
 
-        return from_compiled(self)
+        return from_compiled(self, full_graph=full_graph, input_spec=input_spec)
 
     # ====================================================================
     # Forward
