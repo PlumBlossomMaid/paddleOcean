@@ -25,7 +25,7 @@ class ModelCheckpoint(Callback):
         every_n_train_steps: Save checkpoint every N training steps.
     """
 
-    FILE_EXTENSION = ".ckpt"
+    FILE_EXTENSION = ".pdparams"
 
     def __init__(
         self,

@@ -98,16 +98,14 @@ class _LoggerConnector:
                 lg.log_metrics(metrics, step)
 
     def reset_validation_metrics(self) -> None:
-        """Clear val/test metrics from ``_logged_metrics`` after validation.
+        """Clear all val/test metrics after validation.
 
-        Lightning separates validation and training metric collections.
-        Without this cleanup, ``val/*`` metrics persist in the shared
-        ``_logged_metrics`` dict and get re-flushed on training log steps,
-        polluting loss plots.
+        Clears both ``_logged_metrics`` and ``_metrics_buffer`` so stale
+        validation values (e.g. ``loss/val`` which doesn't start with
+        ``val/``) do not leak into training step-0 log flushes.
         """
-        for key in list(self._logged_metrics.keys()):
-            if key.startswith(("val/", "test/")):
-                self._logged_metrics.pop(key, None)
+        self._logged_metrics.clear()
+        self._metrics_buffer.clear()
 
     def _reset_all_metrics(self) -> None:
         self._callback_metrics = {}
