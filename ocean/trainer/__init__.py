@@ -651,10 +651,6 @@ class Trainer:
                         model.validation_step(batch, batch_idx)
                         _call_callback_hooks(self, "on_validation_batch_end", None, batch, batch_idx, dataloader_idx=0)
                         count += 1
-            # Flush sanity check metrics to logger at step 0,
-            # so loss/val (logged via self.log) appears in VDL
-            # alongside audio/mel images (logged via writer.add_*).
-            self._logger_connector.log_metrics(self.logged_metrics, self._dataloader_step)
         finally:
             _call_callback_hooks(self, "on_sanity_check_end")
             self.sanity_checking = False
