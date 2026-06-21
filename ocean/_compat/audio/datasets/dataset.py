@@ -13,6 +13,8 @@
 # limitations under the License.
 from __future__ import annotations
 
+from typing import Optional
+
 import paddle
 
 from ..features import MFCC, LogMelSpectrogram, MelSpectrogram, Spectrogram
@@ -36,7 +38,7 @@ class AudioClassificationDataset(paddle.io.Dataset):
         files: list[str],
         labels: list[int],
         feat_type: str = "raw",
-        sample_rate: int | None = None,
+        sample_rate: Optional[int] = None,
         **kwargs,
     ):
         """

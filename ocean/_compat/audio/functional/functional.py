@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, Optional, TypeVar
 
 import paddle
 from paddle import Tensor
@@ -181,7 +181,7 @@ def compute_fbank_matrix(
     n_fft: int,
     n_mels: int = 64,
     f_min: float = 0.0,
-    f_max: float | None = None,
+    f_max: Optional[float] = None,
     htk: bool = False,
     norm: Literal["slaney"] | float = "slaney",
     dtype: str = "float32",
@@ -249,7 +249,7 @@ def power_to_db(
     spect: Tensor,
     ref_value: float = 1.0,
     amin: float = 1e-10,
-    top_db: float | None = 80.0,
+    top_db: Optional[float] = 80.0,
 ) -> Tensor:
     """Convert a power spectrogram (amplitude squared) to decibel (dB) units. The function computes the scaling `10 * log10(x / ref)` in a numerically stable way.
 
@@ -332,7 +332,7 @@ def _get_sinc_resample_kernel(
     lowpass_filter_width: int = 6,
     rolloff: float = 0.99,
     resampling_method: Literal["sinc_interp_hann", "sinc_interp_kaiser"] = "sinc_interp_hann",
-    beta: float | None = None,
+    beta: Optional[float] = None,
     dtype: paddle.dtype | None = None,
 ):
     """
@@ -479,7 +479,7 @@ def resample(
     lowpass_filter_width: int = 6,
     rolloff: float = 0.99,
     resampling_method: Literal["sinc_interp_hann", "sinc_interp_kaiser"] = "sinc_interp_hann",
-    beta: float | None = None,
+    beta: Optional[float] = None,
 ) -> Tensor:
     """
     Resample the waveform from orig_freq to new_freq using bandlimited interpolation.

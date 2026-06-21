@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, BinaryIO
+from typing import TYPE_CHECKING, BinaryIO, Optional
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -126,8 +126,8 @@ def save(
     src: Tensor,
     sample_rate: int,
     channels_first: bool = True,
-    encoding: str | None = None,
-    bits_per_sample: int | None = 16,
+    encoding: Optional[str] = None,
+    bits_per_sample: Optional[int] = 16,
 ) -> None:
     """
     Save audio tensor to file.

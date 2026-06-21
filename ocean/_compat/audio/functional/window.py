@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import paddle
@@ -424,7 +424,7 @@ def get_window(
 def _apply_window_postprocess(
     w: Tensor,
     *,
-    layout: str | None = None,
+    layout: Optional[str] = None,
     device: PlaceLike | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
@@ -461,7 +461,7 @@ def hamming_window(
     beta: float = 0.46,
     *,
     dtype: str = "float32",
-    layout: str | None = None,
+    layout: Optional[str] = None,
     device: PlaceLike | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
@@ -512,7 +512,7 @@ def hann_window(
     periodic: bool = True,
     *,
     dtype: str = "float32",
-    layout: str | None = None,
+    layout: Optional[str] = None,
     device: PlaceLike | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
@@ -558,7 +558,7 @@ def kaiser_window(
     beta: float = 12.0,
     *,
     dtype: str = "float32",
-    layout: str | None = None,
+    layout: Optional[str] = None,
     device: PlaceLike | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
@@ -604,7 +604,7 @@ def blackman_window(
     periodic: bool = True,
     *,
     dtype: str = "float32",
-    layout: str | None = None,
+    layout: Optional[str] = None,
     device: PlaceLike | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
@@ -649,7 +649,7 @@ def bartlett_window(
     periodic: bool = True,
     *,
     dtype: str = "float32",
-    layout: str | None = None,
+    layout: Optional[str] = None,
     device: PlaceLike | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,

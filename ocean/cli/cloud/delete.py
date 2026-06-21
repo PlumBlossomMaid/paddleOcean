@@ -8,6 +8,8 @@ Usage (Python API):
     >>> delete_file("user/repo", "path/to/file", token="...")
 """
 
+from typing import Optional
+
 import click
 
 from ocean.cli.cloud import _config
@@ -18,10 +20,10 @@ from ocean.cli.cloud.upload import _check_file_exists, _git_api
 def delete_file(
     repo_id: str,
     path_in_repo: str,
-    token: str | None = None,
+    token: Optional[str] = None,
     repo_type: str = "dataset",
     revision: str = "master",
-    commit_message: str | None = None,
+    commit_message: Optional[str] = None,
 ) -> dict:
     """Delete a file from an AI Studio repo.
 

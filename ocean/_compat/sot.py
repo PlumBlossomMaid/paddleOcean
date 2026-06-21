@@ -31,7 +31,7 @@ References
 
 import inspect
 import logging
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def patch_sot():
         logger.debug("SOT monkey-patch skipped: handler not found in dispatch table")
         return
 
-    def _sot_bound_static_fn_handler(value: Any, graph, tracker) -> object | None:
+    def _sot_bound_static_fn_handler(value: Any, graph, tracker) -> Optional[object]:
         """Handle ``StaticFunction`` with bound instance.
 
         Returns a ``MethodVariable`` if the value is a ``StaticFunction``

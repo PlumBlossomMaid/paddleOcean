@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Optional
 
 import paddle
 from paddle import nn
@@ -85,8 +85,8 @@ class Spectrogram(nn.Layer):
     def __init__(
         self,
         n_fft: int = 512,
-        hop_length: int | None = 512,
-        win_length: int | None = None,
+        hop_length: Optional[int] = 512,
+        win_length: Optional[int] = None,
         window: _WindowLiteral = "hann",
         power: float = 1.0,
         center: bool = True,
@@ -176,15 +176,15 @@ class MelSpectrogram(nn.Layer):
         self,
         sr: int = 22050,
         n_fft: int = 2048,
-        hop_length: int | None = 512,
-        win_length: int | None = None,
+        hop_length: Optional[int] = 512,
+        win_length: Optional[int] = None,
         window: _WindowLiteral = "hann",
         power: float = 2.0,
         center: bool = True,
         pad_mode: Literal["reflect"] = "reflect",
         n_mels: int = 64,
         f_min: float = 50.0,
-        f_max: float | None = None,
+        f_max: Optional[float] = None,
         htk: bool = False,
         norm: Literal["slaney"] | float = "slaney",
         dtype: str = "float32",
@@ -277,26 +277,26 @@ class LogMelSpectrogram(nn.Layer):
 
     ref_value: float
     amin: float
-    top_db: float | None
+    top_db: Optional[float]
 
     def __init__(
         self,
         sr: int = 22050,
         n_fft: int = 512,
-        hop_length: int | None = None,
-        win_length: int | None = None,
+        hop_length: Optional[int] = None,
+        win_length: Optional[int] = None,
         window: _WindowLiteral = "hann",
         power: float = 2.0,
         center: bool = True,
         pad_mode: Literal["reflect"] = "reflect",
         n_mels: int = 64,
         f_min: float = 50.0,
-        f_max: float | None = None,
+        f_max: Optional[float] = None,
         htk: bool = False,
         norm: Literal["slaney"] | float = "slaney",
         ref_value: float = 1.0,
         amin: float = 1e-10,
-        top_db: float | None = None,
+        top_db: Optional[float] = None,
         dtype: str = "float32",
     ) -> None:
         super().__init__()
@@ -390,20 +390,20 @@ class MFCC(nn.Layer):
         sr: int = 22050,
         n_mfcc: int = 40,
         n_fft: int = 512,
-        hop_length: int | None = None,
-        win_length: int | None = None,
+        hop_length: Optional[int] = None,
+        win_length: Optional[int] = None,
         window: _WindowLiteral = "hann",
         power: float = 2.0,
         center: bool = True,
         pad_mode: Literal["reflect"] = "reflect",
         n_mels: int = 64,
         f_min: float = 50.0,
-        f_max: float | None = None,
+        f_max: Optional[float] = None,
         htk: bool = False,
         norm: Literal["slaney"] | float = "slaney",
         ref_value: float = 1.0,
         amin: float = 1e-10,
-        top_db: float | None = None,
+        top_db: Optional[float] = None,
         dtype: str = "float32",
     ) -> None:
         super().__init__()
