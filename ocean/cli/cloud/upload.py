@@ -569,17 +569,19 @@ def _lfs_upload_file(
     revision: str,
     token: str,
     commit_message: Optional[str] = None,
+    sha: Optional[str] = None,  # pre-computed hash; if None, compute from file
 ):
     """Upload a single LFS file to AI Studio.
 
     Flow:
-        1. Compute SHA256 + size
+        1. Compute SHA256 + size (unless ``sha`` is provided)
         2. Call LFS batch API → get STS token or upload_href
         3. Upload to BOS (multipart with STS, or simple PUT to href)
         4. Upload LFS pointer to Gitea
     """
     file_size = os.path.getsize(local_path)
-    sha = _sha256(local_path)
+    if sha is None:
+        sha = _sha256(local_path)
     user_name, repo_name = repo_id.split("/")
 
     # Step 1: Get upload access (LFS batch API needs ``vnd.git-lfs+json`` Content-Type)
@@ -609,14 +611,26 @@ def _lfs_upload_file(
         upload_href = upload_info.get("href", "")
         sts_token = upload_info.get("sts_token", {})
 
-        # Step 2: Upload file content to BOS
         desc = f"{path_in_repo} ({file_size / 1024 / 1024:.1f} MB)"
 
+        # Step 2: Upload file content to BOS
         if sts_token and sts_token.get("bosHost") and file_size > 5 * 1024**3:
-            # Files >5GB: BOS single PUT limit is 5GB, use STS multipart directly.
             _sts_multipart_upload(sts_token, local_path, desc)
         else:
             _http_put(upload_href, local_path, desc)
+
+        # ── Phase 2: Retry large files to trigger BOS availability ──
+        # AI Studio BOS sometimes doesn't link uploaded content on the first pass.
+        # A second LFS pointer upload forces the linkage. Only triggered for
+        # genuine first-time uploads >5GB.
+        LARGE_RETRY = int(os.environ.get("OCEAN_RETRY_LARGE_THRESHOLD", 5 * 1024**3))
+        if file_size > LARGE_RETRY:
+            click.echo(f"  ⚠️  {path_in_repo}: retrying LFS pointer to trigger BOS availability ...")
+            # Re-upload LFS pointer with known hash → no-op BOS upload, but
+            # Gitea pointer write forces BOS to link the staged content.
+            _lfs_upload_file(repo_id, path_in_repo, local_path,
+                             revision, token, commit_message, sha=sha)
+            return
     else:
         click.echo(f"  ⏭️  {path_in_repo}: content already exists on remote (reusing hash).")
 
