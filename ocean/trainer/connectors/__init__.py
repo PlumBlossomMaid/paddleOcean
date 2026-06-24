@@ -93,6 +93,7 @@ class _LoggerConnector:
             self.trainer.loggers = list(logger)
 
     def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+        """Log metrics — delegates to each logger (which filter by rank internally)."""
         for lg in getattr(self.trainer, "loggers", None) or []:
             if hasattr(lg, "log_metrics"):
                 lg.log_metrics(metrics, step)
@@ -265,11 +266,18 @@ class _SignalConnector:
 class _AcceleratorConnector:
     """Resolves accelerator, strategy, devices, and precision.
 
+    Matches Lightning's pattern::
+        - Resolve accelerator first (auto-detect available hardware).
+        - Parse devices via ``accelerator.parse_devices(devices)``.
+        - Build parallel device list via ``accelerator.get_parallel_devices()``.
+        - Choose strategy based on device count:
+            ``len(parallel_devices) > 1 → DDPStrategy``
+            ``len == 1 → SingleDeviceStrategy``
+        - Inject accelerator and parallel_devices into the strategy.
+
     Auto-detects:
-    - strategy="ddp" → DDPStrategy (wraps model in DistributedDataParallel)
-    - strategy="fleet" → FleetStrategy (large-scale distributed)
-    - strategy="auto" → SingleDeviceStrategy (unless distributed env detected)
-    - accelerator="auto" → CPUAccelerator or CUDAAccelerator
+    - strategy="auto" → DDP for multi-device, SingleDevice for single
+    - accelerator="auto" → CUDA > ROCm > XPU > CustomDevice > CPU
     """
 
     def __init__(
@@ -284,7 +292,15 @@ class _AcceleratorConnector:
     ) -> None:
         self.trainer = trainer
         self._accelerator = self._resolve_accelerator(accelerator)
-        self._strategy = self._resolve_strategy(strategy, devices)
+        # Parse devices and build parallel device list
+        self._devices_flag = self._accelerator.parse_devices(devices)
+        self._parallel_devices = self._accelerator.get_parallel_devices(devices)
+        # Choose strategy based on device count (Lightning pattern)
+        self._strategy = self._resolve_strategy(strategy, self._parallel_devices)
+        # Inject accelerator & devices into strategy (Lightning's _lazy_init_strategy)
+        self._strategy.accelerator = self._accelerator
+        self._strategy.parallel_devices = self._parallel_devices
+        # Resolve precision
         self._precision = self._resolve_precision(precision)
         self._set_flags(deterministic, benchmark)
 
@@ -303,7 +319,9 @@ class _AcceleratorConnector:
             XPUAccelerator,
         )
 
-        if accelerator in ("auto", "cpu"):
+        if accelerator == "cpu":
+            return CPUAccelerator()
+        if accelerator == "auto":
             if CUDAAccelerator.is_available():
                 return CUDAAccelerator()
             if ROCmAccelerator.is_available():
@@ -330,11 +348,26 @@ class _AcceleratorConnector:
         raise ValueError(f"Unknown accelerator: {accelerator}")
 
     @staticmethod
-    def _resolve_strategy(strategy: str, devices: Any) -> Any:
+    def _resolve_strategy(strategy: str, parallel_devices: list[Any]) -> Any:
+        """Choose strategy based on device count, matching Lightning's pattern.
+
+        Resolution order::
+            strategy="auto":
+                multi-device  → ``DDPStrategy``
+                single-device → ``SingleDeviceStrategy``
+            strategy in ("ddp", "ddp_spawn"): ``DDPStrategy``
+            strategy="fleet":  ``DDPStrategy`` + fleet init
+            strategy="single_device": ``SingleDeviceStrategy``
+        """
         from ocean.strategies import SingleDeviceStrategy
 
-        # Auto-detect: if distributed env is initialized, use DDP
         if strategy == "auto":
+            # Multi-device → DDP (Lightning pattern)
+            if len(parallel_devices) > 1:
+                from ocean.strategies.ddp import DDPStrategy
+
+                return DDPStrategy()
+            # Already initialized distributed → DDP (external launcher)
             try:
                 import paddle.distributed as dist
 
