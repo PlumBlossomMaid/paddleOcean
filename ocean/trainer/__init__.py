@@ -4,8 +4,16 @@ from collections import defaultdict
 from typing import Any, Optional, Union
 
 import paddle
-from paddlemetrics import Metric as PaddleMetric
-from paddlemetrics.metric import _squeeze_if_scalar
+
+try:
+    from paddlemetrics import Metric as PaddleMetric
+    from paddlemetrics.metric import _squeeze_if_scalar as _pm_squeeze
+
+    _HAS_PADDLEMETRICS = True
+except ImportError:
+    PaddleMetric = type(None)  # placeholder, never matches isinstance
+    _pm_squeeze = lambda x: x
+    _HAS_PADDLEMETRICS = False
 
 from ocean.strategies import SingleDeviceStrategy
 from ocean.trainer.call import (
@@ -626,11 +634,11 @@ class Trainer:
         existing mean-reduce path (aligns with Lightning's pattern).
         """
         # ── paddlemetrics Metric path ────────────────────────────────
-        if isinstance(value, PaddleMetric):
+        if _HAS_PADDLEMETRICS and isinstance(value, PaddleMetric):
             self._metric_objects[name] = value
             step_log = on_step if on_step is not None else True
             if step_log and value._forward_cache is not None:
-                cache_val = _squeeze_if_scalar(value._forward_cache)
+                cache_val = _pm_squeeze(value._forward_cache)
                 if hasattr(cache_val, "item"):
                     cache_val = cache_val.item()
                 self._logger_connector.log_metric_value(name, float(cache_val), prog_bar=prog_bar)
