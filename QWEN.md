@@ -148,6 +148,7 @@ trainer.fit(model, train_loader)
 ### Loggers
 - **路径结构**：`{root_dir}/{name}/version_{N}/metrics.csv`
 - **Ocean 特有**：`VisualDLLogger`（VisualDL）、`OceanLogger`（统一包装）
+- **多卡保护（对齐 Lightning）**：所有 7 个 logger 均使用 `@rank_zero_only` 和 `@rank_zero_experiment` 保护，确保非 rank 0 进程不执行写操作。详见 PR #5。
 
 ### Strategies
 - **DDP 流程**：`setup → accelerator.setup → precision.convert_module → model_to_device → DataParallel → setup_optimizers`

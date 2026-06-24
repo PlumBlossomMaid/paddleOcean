@@ -1,8 +1,13 @@
-"""CometLogger - logs metrics to CometML."""
+"""CometLogger - logs metrics to CometML.
+
+Uses ``@rank_zero_only`` and ``@rank_zero_experiment`` to ensure
+only rank 0 writes to CometML (matching Lightning's CometLogger pattern).
+"""
 
 from typing import Any, Mapping, Optional
 
 from ocean.loggers.base import Logger
+from ocean.utils.rank_zero import rank_zero_experiment, rank_zero_only
 
 
 class CometLogger(Logger):
@@ -42,6 +47,7 @@ class CometLogger(Logger):
         self._experiment = None
 
     @property
+    @rank_zero_experiment
     def experiment(self) -> Any:
         if self._experiment is None:
             self._experiment = self._create_experiment()
@@ -88,6 +94,7 @@ class CometLogger(Logger):
     def save_dir(self) -> Optional[str]:
         return None
 
+    @rank_zero_only
     def log_hyperparams(self, params: dict[str, Any]) -> None:
         try:
             self.experiment.__internal_api__log_parameters__(
@@ -99,6 +106,7 @@ class CometLogger(Logger):
         except Exception:
             pass
 
+    @rank_zero_only
     def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
         try:
             m = {}
@@ -117,11 +125,13 @@ class CometLogger(Logger):
         except Exception:
             pass
 
+    @rank_zero_only
     def finalize(self, status: str) -> None:
         try:
             self.experiment.end()
         except Exception:
             pass
 
+    @rank_zero_only
     def log_graph(self, model: Any, input_array: Any = None) -> None:
         pass
