@@ -19,7 +19,6 @@ import itertools
 import unittest
 
 import paddle
-from conftest import blacklist_skip_msg, in_device_blacklist
 from parameterized import parameterized
 
 from ocean._compat import audio as compat_audio
@@ -29,7 +28,6 @@ def parameterize(*params):
     return parameterized.expand(list(itertools.product(*params)))
 
 
-@unittest.skipIf(in_device_blacklist(), blacklist_skip_msg())
 class TestAudioFunctions(unittest.TestCase):
     def setUp(self):
         paddle.disable_static()

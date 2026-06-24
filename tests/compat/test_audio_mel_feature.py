@@ -17,18 +17,15 @@ import unittest
 import librosa
 import numpy as np
 import paddle
-from conftest import blacklist_skip_msg, in_device_blacklist
 from parameterized import parameterized
 
 from ocean._compat import audio as compat_audio
-from ocean.utils.testing import assert_close
 
 
 def parameterize(*params):
     return parameterized.expand(list(itertools.product(*params)))
 
 
-@unittest.skipIf(in_device_blacklist(), blacklist_skip_msg())
 class TestFeatures(unittest.TestCase):
     def setUp(self):
         self.init_params()
@@ -72,7 +69,7 @@ class TestFeatures(unittest.TestCase):
             dtype=paddle_dtype,
         )
 
-        assert_close(feature_functional, feature_librosa, dtype=paddle_dtype)
+        np.testing.assert_array_almost_equal(feature_librosa, feature_functional)
 
     @parameterize([8000, 16000], [128, 256], [64, 82], [40, 80], [False, True])
     def test_melspect(self, sr: int, n_fft: int, hop_length: int, n_mels: int, htk: bool):
