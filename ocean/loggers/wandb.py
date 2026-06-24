@@ -1,8 +1,13 @@
-"""WandbLogger - logs metrics to Weights & Biases."""
+"""WandbLogger - logs metrics to Weights & Biases.
+
+Uses ``@rank_zero_only`` and ``@rank_zero_experiment`` to ensure
+only rank 0 writes to W&B (matching Lightning's WandbLogger pattern).
+"""
 
 from typing import Any, Mapping, Optional
 
 from ocean.loggers.base import Logger
+from ocean.utils.rank_zero import rank_zero_experiment, rank_zero_only
 
 
 class WandbLogger(Logger):
@@ -44,6 +49,7 @@ class WandbLogger(Logger):
         self._logged_model_time = None
 
     @property
+    @rank_zero_experiment
     def experiment(self) -> Any:
         if self._experiment is None:
             self._experiment = self._create_experiment()
@@ -90,6 +96,7 @@ class WandbLogger(Logger):
     def save_dir(self) -> Optional[str]:
         return self._save_dir
 
+    @rank_zero_only
     def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
         try:
             prefixed = {}
@@ -103,12 +110,14 @@ class WandbLogger(Logger):
         except Exception:
             pass
 
+    @rank_zero_only
     def log_hyperparams(self, params: dict[str, Any]) -> None:
         try:
             self.experiment.config.update(params, allow_val_change=True)
         except Exception:
             pass
 
+    @rank_zero_only
     def finalize(self, status: str) -> None:
         try:
             import wandb
@@ -118,6 +127,7 @@ class WandbLogger(Logger):
         except Exception:
             pass
 
+    @rank_zero_only
     def watch(self, model: Any, log: str = "gradients", log_freq: int = 100) -> None:
         try:
             self.experiment.watch(model, log=log, log_freq=log_freq)

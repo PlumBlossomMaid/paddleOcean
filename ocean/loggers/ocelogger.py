@@ -2,11 +2,16 @@
 
 Analogous to ocean's LitLogger.
 Provides a consistent interface for all loggers.
+
+Uses ``@rank_zero_only`` on all write methods so non-rank-0
+processes skip all logger delegation (belt-and-suspenders with
+individual logger decorators).
 """
 
 from typing import Any, Optional, Union
 
 from ocean.loggers.base import Logger
+from ocean.utils.rank_zero import rank_zero_only
 
 
 class OceanLogger:
@@ -30,6 +35,7 @@ class OceanLogger:
     def loggers(self) -> list[Logger]:
         return self._loggers
 
+    @rank_zero_only
     def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
         for lg in self._loggers:
             try:
@@ -37,6 +43,7 @@ class OceanLogger:
             except Exception:
                 pass
 
+    @rank_zero_only
     def log_hyperparams(self, params: dict[str, Any]) -> None:
         for lg in self._loggers:
             try:
@@ -44,6 +51,7 @@ class OceanLogger:
             except Exception:
                 pass
 
+    @rank_zero_only
     def save(self) -> None:
         for lg in self._loggers:
             try:
@@ -51,6 +59,7 @@ class OceanLogger:
             except Exception:
                 pass
 
+    @rank_zero_only
     def finalize(self, status: str = "success") -> None:
         for lg in self._loggers:
             try:
