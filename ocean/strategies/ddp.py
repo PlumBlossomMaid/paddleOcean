@@ -331,10 +331,14 @@ class DDPStrategy(ParallelStrategy):
     # ==================================================================
 
     def teardown(self) -> None:
-        """Clean up distributed resources."""
-        try:
-            if self._is_initialized:
+        """Clean up distributed resources.
+
+        Avoids barrier + model.to(CPU) deadlocks in DDP: just let
+        processes exit naturally once all ranks finish.
+        """
+        if self._is_initialized:
+            try:
                 paddle.distributed.barrier()
-        except Exception:
-            pass
-        super().teardown()
+                paddle.distributed.destroy_process_group()
+            except Exception:
+                pass

@@ -74,6 +74,11 @@ class VisualDLLogger(Logger):
             return _DummyWriter()
 
     def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+        """Log metrics — only writes on rank 0 (defense-in-depth)."""
+        import os
+
+        if int(os.environ.get("LOCAL_RANK", 0)) != 0:
+            return
         if step is None:
             return
         for k, v in metrics.items():

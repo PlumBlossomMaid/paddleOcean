@@ -24,6 +24,28 @@ from ocean.trainer.connectors import (
 from ocean.trainer.states import RunningStage, TrainerFn, TrainerState, TrainerStatus
 
 
+def _patch_ddp_attr_forward(ddp_model: paddle.nn.Layer) -> None:
+    """Patch a ``paddle.distributed.DataParallel`` instance so that unknown
+    attribute accesses are forwarded to the underlying ``_layers`` module.
+
+    PaddlePaddle's ``DataParallel`` does **not** forward custom attributes
+    like ``training_step``, ``on_train_batch_start``, unlike PyTorch's DDP.
+    This patch makes Ocean training loops work transparently with DDP.
+    """
+    original_class = type(ddp_model)
+
+    class _DDPProxy(original_class):  # type: ignore[misc]
+        """DataParallel subclass that forwards unknown attrs to _layers."""
+
+        def __getattr__(self, name: str) -> Any:
+            try:
+                return super().__getattr__(name)
+            except AttributeError:
+                return getattr(self._layers, name)
+
+    ddp_model.__class__ = _DDPProxy
+
+
 class Trainer:
     """Complete training engine with all ocean components.
 
@@ -307,6 +329,41 @@ class Trainer:
         """
         return self.strategy.is_global_zero if hasattr(self, "strategy") else True
 
+    @staticmethod
+    def spawn(
+        fn: Any,
+        nprocs: int = 4,
+        accelerator: str = "gpu",
+        precision: str = "32",
+        **spawn_kwargs: Any,
+    ) -> Any:
+        """Launch a training function across multiple processes via ``paddle.distributed.spawn``.
+
+        This is the Ocean equivalent of Lightning's ``ddp_spawn``.  Each
+        subprocess receives ``fn(rank, *args)`` and should create its own
+        model and trainer inside.
+
+        Usage::
+
+            def train_fn(rank, model_cls, data_fn):
+                model = model_cls()
+                trainer = ocean.Trainer(accelerator="gpu", strategy="ddp", devices=4)
+                trainer.fit(model, data_fn())
+
+            ocean.Trainer.spawn(train_fn, nprocs=4, args=(MyModel, make_data))
+
+        Args:
+            fn: Training function ``fn(rank, *args)`` called in each process.
+            nprocs: Number of processes to spawn.
+            accelerator: Accelerator type (default ``"gpu"``).
+            precision: Training precision.
+            **spawn_kwargs: Additional kwargs passed to ``paddle.distributed.spawn``.
+
+        Returns:
+            The ``MultiprocessContext`` from ``paddle.distributed.spawn``.
+        """
+        return paddle.distributed.spawn(fn, nprocs=nprocs, **spawn_kwargs)
+
     # ====================================================================
     # Fit
     # ====================================================================
@@ -321,6 +378,33 @@ class Trainer:
     ) -> None:
         self.state.fn = TrainerFn.FITTING
         self.state.status = TrainerStatus.RUNNING
+
+        # Auto-spawn for ddp_spawn strategy (Lightning-compatible)
+        if self.strategy_flag == "ddp_spawn" and len(getattr(self.strategy, "parallel_devices", [])) > 1:
+            from ocean.trainer.connectors import _AcceleratorConnector
+
+            nprocs = len(self.strategy.parallel_devices)
+
+            def _spawned_fit(rank: int) -> None:
+                """Recreate Trainer + model in each subprocess and run fit."""
+                trainer = Trainer(
+                    accelerator=self.accelerator_flag,
+                    strategy="ddp",
+                    devices=nprocs,
+                    precision=self.precision_flag,
+                    max_epochs=self.max_epochs,
+                    log_every_n_steps=self.log_every_n_steps,
+                    enable_progress_bar=self.enable_progress_bar,
+                    enable_checkpointing=bool(self._checkpoint_connector),
+                    logger=self.loggers,
+                    default_root_dir=self.default_root_dir or ".",
+                    verbose=self.verbose,
+                )
+                model._trainer = trainer
+                trainer.fit(model, train_dataloaders, val_dataloaders, datamodule, ckpt_path)
+
+            return paddle.distributed.spawn(_spawned_fit, nprocs=nprocs)
+
         _call_and_handle_interrupt(
             self, self._fit_impl, model, train_dataloaders, val_dataloaders, datamodule, ckpt_path
         )
@@ -363,6 +447,24 @@ class Trainer:
         # Device
         device = self._resolve_device()
         model.to(device)
+
+        # DDP wrapping (if applicable)
+        from ocean.strategies.ddp import DDPStrategy
+
+        if isinstance(self.strategy, DDPStrategy) and self.strategy._is_initialized:
+            # Paddle's DataParallel does not forward custom attributes like
+            # ``training_step``, ``validation_step``, etc.  We patch the wrapper
+            # class to forward unknown attribute access to ``_layers`` so that
+            # hooks and step methods are transparently available on the DDP model.
+            ddp_model = paddle.distributed.DataParallel(
+                self._model,
+                find_unused_parameters=self.strategy._find_unused_parameters,
+            )
+            _patch_ddp_attr_forward(ddp_model)
+            self._model = ddp_model
+            self._original_model = model
+        else:
+            self._original_model = None
 
         # Optimizer & Strategy setup
         self._optimizers = self._resolve_optimizers(model)
@@ -557,8 +659,16 @@ class Trainer:
     def _resolve_device(self) -> Any:
         """Resolve device consistent with _AcceleratorConnector auto-detection.
 
-        ocean-compatible: auto mode checks CUDA availability.
+        In DDP mode, delegates to ``self.strategy.root_device`` so each
+        process uses its assigned device (e.g. GPU:0, GPU:1, ...).
         """
+        # DDP: each process uses its own device from the strategy
+        if hasattr(self, "strategy") and self.strategy is not None:
+            try:
+                return self.strategy.root_device
+            except Exception:
+                pass
+
         if self.accelerator_flag == "auto":
             if paddle.is_compiled_with_cuda():
                 return paddle.CUDAPlace(0)
