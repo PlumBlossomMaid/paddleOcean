@@ -4,7 +4,7 @@ Auto-detects the available custom device type via PaddlePaddle's native
 ``get_all_custom_device_type()`` API — no hardcoded vendor names needed.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import paddle
 
@@ -24,7 +24,7 @@ class CustomDeviceAccelerator(Accelerator):
             If ``None`` (default), auto-detect from the runtime.
     """
 
-    def __init__(self, device_type: str | None = None) -> None:
+    def __init__(self, device_type: Optional[str] = None) -> None:
         self.device_type = device_type or self._detect_device_type()
 
     # ------------------------------------------------------------------
