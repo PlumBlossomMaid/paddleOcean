@@ -279,15 +279,15 @@ class DDPStrategy(ParallelStrategy):
     # ==================================================================
 
     def save_checkpoint(self, checkpoint: dict, filepath: str) -> None:
-        """Save checkpoint - only on global rank 0."""
+        """Save checkpoint - only on global rank 0.
+
+        Uses ``paddle.save`` directly instead of ``paddle.distributed.save_state_dict``
+        to avoid:
+        1. Collective ops (``all_gather``) on a potentially-destroyed process group
+        2. ``save_state_dict`` creating a directory that conflicts with subsequent saves
+        """
         if self.is_global_zero:
-            try:
-                paddle.distributed.save_state_dict(
-                    checkpoint.get("state_dict", {}),
-                    filepath,
-                )
-            except Exception:
-                paddle.save(checkpoint, filepath)
+            paddle.save(checkpoint, filepath)
 
     def load_checkpoint(self, checkpoint_path: str) -> dict:
         """Load checkpoint with distributed support."""
@@ -333,12 +333,14 @@ class DDPStrategy(ParallelStrategy):
     def teardown(self) -> None:
         """Clean up distributed resources.
 
-        Avoids barrier + model.to(CPU) deadlocks in DDP: just let
-        processes exit naturally once all ranks finish.
+        Does NOT call ``destroy_process_group`` here because the caller
+        (``Trainer._teardown``) is invoked after ``fit_loop`` but before
+        ``test`` / ``save_checkpoint`` — destroying the group would break
+        subsequent collective ops.  The process group is automatically
+        cleaned up when the subprocess exits.
         """
         if self._is_initialized:
             try:
                 paddle.distributed.barrier()
-                paddle.distributed.destroy_process_group()
             except Exception:
                 pass
