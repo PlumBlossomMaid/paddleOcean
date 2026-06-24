@@ -60,9 +60,9 @@ def assert_close(
     actual: np.ndarray,
     expected: np.ndarray,
     *,
-    rtol: float | None = None,
-    atol: float | None = None,
-    dtype: paddle.dtype | None = None,
+    rtol: Optional[float] = None,
+    atol: Optional[float] = None,
+    dtype: Optional[paddle.dtype] = None,
     msg: str = "",
 ) -> None:
     """Assert that two numpy arrays are close, with dtype-aware defaults.
@@ -72,14 +72,17 @@ def assert_close(
     ``None``, common dtypes between the two arrays are used.
 
     Args:
-        actual: Computed result (numpy array).
-        expected: Reference result (numpy array).
+        actual: Computed result (numpy array or scalar).
+        expected: Reference result (numpy array or scalar).
         rtol: Relative tolerance. If ``None``, inferred from dtype.
         atol: Absolute tolerance. If ``None``, inferred from dtype.
         dtype: Data type for tolerance lookup. If ``None``, inferred from
             ``actual`` and ``expected`` dtypes.
         msg: Optional error message prefix.
     """
+    actual = np.asarray(actual)
+    expected = np.asarray(expected)
+
     if dtype is None:
         common = np.result_type(actual.dtype, expected.dtype)
         if common == np.float64:
