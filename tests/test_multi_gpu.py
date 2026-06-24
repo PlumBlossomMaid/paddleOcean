@@ -73,6 +73,7 @@ class TestAcceleratorParseDevices:
         devs = CUDAAccelerator.parse_devices(None)
         assert isinstance(devs, list)
 
+    @RunIf(min_cuda_gpus=1)
     def test_cuda_get_parallel_devices(self):
         """CUDAAccelerator.get_parallel_devices(2) → [CUDAPlace(0), CUDAPlace(1)]."""
         devs = CUDAAccelerator.get_parallel_devices(2)
@@ -132,10 +133,9 @@ class TestAcceleratorParseDevices:
 class TestDDPStrategyDeviceAgnostic:
     """Verify DDPStrategy handles various device types correctly."""
 
+    @RunIf(min_cuda_gpus=1)
     def test_ddp_root_device_cuda(self):
         """DDPStrategy.root_device returns CUDAPlace with CUDA accelerator."""
-        if not CUDAAccelerator.is_available():
-            pytest.skip("CUDA not available")
         acc = CUDAAccelerator()
         strategy = ocean.strategies.DDPStrategy(accelerator=acc, parallel_devices=[ocean.CUDAPlace(0)])
         device = strategy.root_device
@@ -147,6 +147,7 @@ class TestDDPStrategyDeviceAgnostic:
         device = strategy.root_device
         assert isinstance(device, (ocean.CUDAPlace, ocean.CPUPlace))
 
+    @RunIf(min_cuda_gpus=1)
     def test_ddp_parallel_devices_injection(self):
         """DDPStrategy accepts parallel_devices from connector."""
         devs = [ocean.CUDAPlace(i) for i in range(2)]
@@ -154,6 +155,7 @@ class TestDDPStrategyDeviceAgnostic:
         strategy._local_rank = 1
         assert strategy.root_device == devs[1]
 
+    @RunIf(min_cuda_gpus=1)
     def test_ddp_determine_device_ids_cuda(self):
         """_determine_ddp_device_ids returns [local_rank] for CUDA."""
         strategy = ocean.strategies.DDPStrategy(

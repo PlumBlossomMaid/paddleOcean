@@ -300,7 +300,12 @@ class Trainer:
 
     @property
     def is_global_zero(self) -> bool:
-        return True
+        """Whether this process is global rank 0.
+
+        Delegates to ``self.strategy.is_global_zero`` in distributed mode,
+        so only the main process reports True.
+        """
+        return self.strategy.is_global_zero if hasattr(self, "strategy") else True
 
     # ====================================================================
     # Fit
@@ -594,8 +599,8 @@ class Trainer:
         return min(int(total * limit), total)
 
     def _print(self, msg: str) -> None:
-        """Print a message to console if verbose."""
-        if self.verbose > 0:
+        """Print a message to console only on rank 0."""
+        if self.verbose > 0 and self.is_global_zero:
             print(msg)
 
     def _should_check_val(self) -> bool:
