@@ -4,6 +4,8 @@ from collections import defaultdict
 from typing import Any, Optional, Union
 
 import paddle
+from paddlemetrics import Metric as PaddleMetric
+from paddlemetrics.metric import _squeeze_if_scalar
 
 from ocean.strategies import SingleDeviceStrategy
 from ocean.trainer.call import (
@@ -247,6 +249,7 @@ class Trainer:
         # === Metrics ===
         self._log_metrics_buffer: dict[str, list[float]] = defaultdict(list)
         self._log_metrics_on_epoch: dict[str, float] = {}
+        self._metric_objects: dict[str, Any] = {}
 
     # ====================================================================
     # Properties
@@ -616,14 +619,30 @@ class Trainer:
         rank_zero_only: bool = False,
         metric_attribute: Optional[str] = None,
     ) -> None:
+        """Log a metric value.
+
+        If ``value`` is a ``paddlemetrics.Metric``, it is stored for
+        epoch-level ``.compute()``.  Scalars / Tensors follow the
+        existing mean-reduce path (aligns with Lightning's pattern).
+        """
+        # ── paddlemetrics Metric path ────────────────────────────────
+        if isinstance(value, PaddleMetric):
+            self._metric_objects[name] = value
+            step_log = on_step if on_step is not None else True
+            if step_log and value._forward_cache is not None:
+                cache_val = _squeeze_if_scalar(value._forward_cache)
+                if hasattr(cache_val, "item"):
+                    cache_val = cache_val.item()
+                self._logger_connector.log_metric_value(name, float(cache_val), prog_bar=prog_bar)
+            return
+
+        # ── Scalar / Tensor path ─────────────────────────────────────
         if hasattr(value, "item"):
             value = value.item()
 
         # Handle sync_dist: reduce across processes
         if sync_dist and hasattr(self.strategy, "reduce"):
             try:
-                import paddle
-
                 value = self.strategy.reduce(paddle.to_tensor(value), reduce_op="mean", group=sync_dist_group)
                 if hasattr(value, "item"):
                     value = value.item()
@@ -646,11 +665,29 @@ class Trainer:
             self._logger_connector.log_metric_value(name, float(value), prog_bar=prog_bar)
 
     def _compute_epoch_metrics(self) -> None:
-        """Reduce buffered metrics into epoch-level values."""
+        """Reduce buffered metrics into epoch-level values.
+
+        Scalars: averaged across steps.
+        ``paddlemetrics.Metric`` objects: delegated to ``.compute()``
+        (aligns with Lightning's pattern — the Metric handles its own
+        reduction across batches and distributed sync).
+        """
+        # ── Scalar / Tensor metrics (mean-reduce) ────────────────────
         for name, values in self._log_metrics_buffer.items():
             if values:
                 self._log_metrics_on_epoch[name] = float(sum(values)) / len(values)
         self._log_metrics_buffer.clear()
+
+        # ── paddlemetrics Metric objects (delegate to .compute()) ────
+        for name, metric in self._metric_objects.items():
+            try:
+                val = metric.compute()
+                if hasattr(val, "item"):
+                    val = val.item()
+                self._log_metrics_on_epoch[name] = float(val)
+            except Exception:
+                pass
+        self._metric_objects.clear()
 
     # ====================================================================
     # Internal utilities
