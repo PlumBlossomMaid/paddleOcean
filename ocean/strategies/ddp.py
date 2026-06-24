@@ -78,6 +78,13 @@ class DDPStrategy(ParallelStrategy):
 
     @property
     def is_global_zero(self) -> bool:
+        """Whether this process is global rank 0.
+
+        Uses ``LOCAL_RANK`` env var as fallback before ``_rank`` is set
+        by ``setup_environment()`` (e.g. during Trainer init).
+        """
+        if not self._is_initialized:
+            return int(os.environ.get("LOCAL_RANK", 0)) == 0
         return self._rank == 0
 
     @property

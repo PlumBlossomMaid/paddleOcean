@@ -2,12 +2,12 @@
 
 Test categories:
 1. **Unit tests** — Accelerator multi-device parsing (no GPU needed)
-2. **Integration tests** — DDPStrategy device-agnostic setup (single GPU)
-3. **Multi-GPU tests** — End-to-end DDP training with 2+ GPUs (standalone)
+2. **Integration tests** — DDPStrategy device-agnostic setup
+3. **Multi-GPU tests** — End-to-end DDP training with 2+ GPUs
 
-Multi-GPU tests only run when:
-- ``CUDA_VISIBLE_DEVICES`` lists 2+ devices OR
-- ``@RunIf(min_cuda_gpus=2, standalone=True)`` conditions are met
+Multi-GPU tests use ``paddle.distributed.spawn`` internally (no
+``OCEAN_RUN_STANDALONE_TESTS`` needed).  They only run on machines
+with 2+ CUDA GPUs.
 """
 
 import os
@@ -260,20 +260,23 @@ class TestConnectorMultiDevice:
 
 
 # ====================================================================
-# 4. End-to-end multi-GPU DDP training (standalone, 2+ GPUs)
+# 4. End-to-end multi-GPU DDP training (auto-spawn, no standalone needed)
 # ====================================================================
 
 
 class TestMultiGPUTraining:
     """End-to-end multi-GPU training tests.
 
-    These tests require 2+ GPUs and run in standalone mode
-    (each test is launched as a separate process).
+    Uses ``paddle.distributed.spawn`` internally so they run directly
+    with ``pytest`` on any machine with 2+ CUDA GPUs.
     """
 
-    @RunIf(min_cuda_gpus=2, standalone=True)
-    def test_ddp_fit_two_gpus(self, tmp_path):
-        """DDP training with 2 GPUs: fit 1 epoch."""
+    @staticmethod
+    def _run_fit(tmp_path_str: str) -> None:
+        """Training function executed in each spawned process."""
+        import os
+
+        rank = int(os.environ.get("LOCAL_RANK", 0))
         ocean.seed_everything(42)
 
         class SimpleModel(ocean.Model):
@@ -293,10 +296,12 @@ class TestMultiGPUTraining:
             def configure_optimizers(self):
                 return ocean.optimizer.SGD(learning_rate=0.01, parameters=self.parameters())
 
-        x = ocean.randn([64, 10])
-        y = ocean.randint(0, 2, [64])
-        dataset = ocean.io.TensorDataset([x, y])
-        loader = ocean.io.DataLoader(dataset, batch_size=8)
+        import paddle
+
+        x = paddle.randn([64, 10])
+        y = paddle.randint(0, 2, [64])
+        dataset = paddle.io.TensorDataset([x, y])
+        loader = paddle.io.DataLoader(dataset, batch_size=8)
 
         model = SimpleModel()
         trainer = ocean.Trainer(
@@ -306,14 +311,14 @@ class TestMultiGPUTraining:
             max_epochs=1,
             enable_progress_bar=False,
             log_every_n_steps=999,
-            default_root_dir=str(tmp_path),
+            default_root_dir=tmp_path_str,
         )
         trainer.fit(model, loader)
         assert trainer.dataloader_step > 0
 
-    @RunIf(min_cuda_gpus=2, standalone=True)
-    def test_ddp_fit_test_two_gpus(self, tmp_path):
-        """DDP training with 2 GPUs: fit + test."""
+    @staticmethod
+    def _run_fit_test(tmp_path_str: str) -> None:
+        """Training + testing function for spawned process."""
         ocean.seed_everything(42)
 
         class SimpleModel(ocean.Model):
@@ -338,10 +343,12 @@ class TestMultiGPUTraining:
             def configure_optimizers(self):
                 return ocean.optimizer.SGD(learning_rate=0.01, parameters=self.parameters())
 
-        x = ocean.randn([64, 10])
-        y = ocean.randint(0, 2, [64])
-        dataset = ocean.io.TensorDataset([x, y])
-        loader = ocean.io.DataLoader(dataset, batch_size=8)
+        import paddle
+
+        x = paddle.randn([64, 10])
+        y = paddle.randint(0, 2, [64])
+        dataset = paddle.io.TensorDataset([x, y])
+        loader = paddle.io.DataLoader(dataset, batch_size=8)
 
         model = SimpleModel()
         trainer = ocean.Trainer(
@@ -351,14 +358,17 @@ class TestMultiGPUTraining:
             max_epochs=1,
             enable_progress_bar=False,
             log_every_n_steps=999,
-            default_root_dir=str(tmp_path),
+            default_root_dir=tmp_path_str,
         )
         trainer.fit(model, loader)
         trainer.test(model, loader)
 
-    @RunIf(min_cuda_gpus=2, standalone=True)
-    def test_ddp_checkpoint_resume(self, tmp_path):
-        """DDP checkpoint save and resume."""
+    @staticmethod
+    def _run_checkpoint(tmp_path_str: str) -> None:
+        """Checkpoint save function for spawned process."""
+        import os
+
+        rank = int(os.environ.get("LOCAL_RANK", 0))
         ocean.seed_everything(42)
 
         class SimpleModel(ocean.Model):
@@ -377,10 +387,12 @@ class TestMultiGPUTraining:
             def configure_optimizers(self):
                 return ocean.optimizer.SGD(learning_rate=0.01, parameters=self.parameters())
 
-        x = ocean.randn([64, 10])
-        y = ocean.randint(0, 2, [64])
-        dataset = ocean.io.TensorDataset([x, y])
-        loader = ocean.io.DataLoader(dataset, batch_size=8)
+        import paddle
+
+        x = paddle.randn([64, 10])
+        y = paddle.randint(0, 2, [64])
+        dataset = paddle.io.TensorDataset([x, y])
+        loader = paddle.io.DataLoader(dataset, batch_size=8)
 
         model = SimpleModel()
         trainer = ocean.Trainer(
@@ -390,12 +402,33 @@ class TestMultiGPUTraining:
             max_epochs=1,
             enable_progress_bar=False,
             log_every_n_steps=999,
-            default_root_dir=str(tmp_path),
+            default_root_dir=tmp_path_str,
         )
         trainer.fit(model, loader)
-        ckpt_path = str(tmp_path / "last.ckpt")
+        ckpt_path = os.path.join(tmp_path_str, f"last_rank{rank}.ckpt")
         trainer.save_checkpoint(ckpt_path)
         assert os.path.exists(ckpt_path)
+
+    @RunIf(min_cuda_gpus=2)
+    def test_ddp_fit_two_gpus(self, tmp_path):
+        """DDP training with 2 GPUs via spawn."""
+        import paddle
+
+        paddle.distributed.spawn(self._run_fit, args=(str(tmp_path),), nprocs=2)
+
+    @RunIf(min_cuda_gpus=2)
+    def test_ddp_fit_test_two_gpus(self, tmp_path):
+        """DDP training + testing with 2 GPUs via spawn."""
+        import paddle
+
+        paddle.distributed.spawn(self._run_fit_test, args=(str(tmp_path),), nprocs=2)
+
+    @RunIf(min_cuda_gpus=2)
+    def test_ddp_checkpoint_save(self, tmp_path):
+        """DDP checkpoint save via spawn."""
+        import paddle
+
+        paddle.distributed.spawn(self._run_checkpoint, args=(str(tmp_path),), nprocs=2)
 
 
 # ====================================================================
@@ -483,15 +516,18 @@ class TestGearMultiDevice:
 
             os.unlink(path)
 
-    @RunIf(min_cuda_gpus=2, standalone=True)
+    @RunIf(min_cuda_gpus=2)
     def test_gear_ddp_setup(self, tmp_path):
         """Gear.setup with DDP wraps model in DataParallel."""
-        gear = ocean.Gear(accelerator="gpu", devices=2, strategy="ddp")
-        gear.launch()
-        model = paddle.nn.Linear(10, 2)
-        model = gear.setup(model)
-        # In DDP mode, model should be DataParallel-wrapped
-        assert isinstance(model, paddle.nn.Layer)
+
+        def _run(rank: int) -> None:
+            gear = ocean.Gear(accelerator="gpu", devices=2, strategy="ddp")
+            gear.launch()
+            model = paddle.nn.Linear(10, 2)
+            model = gear.setup(model)
+            assert isinstance(model, paddle.nn.Layer)
+
+        paddle.distributed.spawn(_run, nprocs=2)
 
 
 # ====================================================================
