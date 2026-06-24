@@ -287,6 +287,14 @@ class DDPStrategy(ParallelStrategy):
         2. ``save_state_dict`` creating a directory that conflicts with subsequent saves
         """
         if self.is_global_zero:
+            # Safety: if a directory was left behind by a previous failed
+            # ``save_state_dict`` call, remove it so ``paddle.save`` works.
+            import os
+
+            if os.path.isdir(filepath):
+                import shutil
+
+                shutil.rmtree(filepath)
             paddle.save(checkpoint, filepath)
 
     def load_checkpoint(self, checkpoint_path: str) -> dict:
