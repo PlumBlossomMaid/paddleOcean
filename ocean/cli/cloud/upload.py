@@ -467,12 +467,12 @@ def _split_batches(file_quads: list, batch: str | int | None) -> list[list]:
 
     if isinstance(batch, int) or (isinstance(batch, str) and batch.isdigit()):
         n = int(batch)
-        return [file_quads[i:i + n] for i in range(0, len(file_quads), n)]
+        return [file_quads[i : i + n] for i in range(0, len(file_quads), n)]
 
     if batch == "auto":
-        max_payload = 5 * 1024 * 1024      # 5 MB — commit POST 体量上限
-        max_file_size = 20 * 1024**3       # 20 GB — 一批内原始文件总大小上限
-        max_file_count = 200                # 200 个 — 一批内文件数量上限
+        max_payload = 5 * 1024 * 1024  # 5 MB — commit POST 体量上限
+        max_file_size = 20 * 1024**3  # 20 GB — 一批内原始文件总大小上限
+        max_file_count = 200  # 200 个 — 一批内文件数量上限
         batches: list[list] = []
         current: list = []
         current_payload = 0
@@ -874,7 +874,8 @@ def _batch_commit(
 @click.option("--max-workers", default=4, type=int, help="Parallel upload workers.")
 @click.option("--commit-message", default=None, help="Commit message.")
 @click.option(
-    "--batch", default="auto",
+    "--batch",
+    default="auto",
     help="Commit batch size. int=N → N files per commit, 'auto' → smart split (default), 'all' → one commit.",
 )
 def upload(
@@ -1076,9 +1077,7 @@ def upload_folder(
             try:
                 _batch_commit(repo_id, revision, token, msg, chunk)
             except Exception as e:
-                raise click.ClickException(
-                    f"Commit failed{batch_label}: {e}"
-                )
+                raise click.ClickException(f"Commit failed{batch_label}: {e}")
     else:
         click.echo("  No files to commit.")
 

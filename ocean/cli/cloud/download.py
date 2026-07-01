@@ -390,9 +390,7 @@ def download(
         # Resolve correct repo-relative paths via Contents API reference
         try:
             root_items = [
-                item["name"] for item in list_files(
-                    repo_id, repo_type=repo_type, revision=revision, token=token
-                )
+                item["name"] for item in list_files(repo_id, repo_type=repo_type, revision=revision, token=token)
             ]
             resolved_paths = _resolve_repo_paths(files, root_items)
         except (requests.RequestException, JSONDecodeError, KeyError, IndexError) as e:
