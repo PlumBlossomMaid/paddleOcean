@@ -394,8 +394,8 @@ def download(
                 )
             ]
             resolved_paths = _resolve_repo_paths(files, root_items)
-        except Exception:
-            # Fallback: use raw paths
+        except Exception as e:
+            _echo(f"  ⚠️  Failed to resolve repo paths ({e}), falling back to raw paths.")
             resolved_paths = [f["path"] for f in files]
         for entry, local_rel in zip(files, resolved_paths):
             entry["_local_rel"] = local_rel
