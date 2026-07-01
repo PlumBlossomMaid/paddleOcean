@@ -27,7 +27,6 @@ from urllib.parse import quote, urlparse
 
 # Suppress BEFORE importing requests, since the warning is emitted at import time
 warnings.filterwarnings("ignore", message=".*urllib3.*")
-warnings.filterwarnings("ignore", message=".*doesn't match a supported version.*")
 warnings.filterwarnings("ignore", category=Warning, message=".*urllib3.*")
 
 import click  # noqa: E402
