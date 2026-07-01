@@ -403,7 +403,6 @@ def download(
 
         def _download_one(entry: dict) -> tuple[str, bool]:
             """Download a single file. Returns (path, success)."""
-            file_path = entry["path"]
             local_rel = entry["_local_rel"]
             local_path = dest / local_rel
             expected_size = entry.get("size")
