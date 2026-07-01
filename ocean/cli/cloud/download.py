@@ -48,7 +48,7 @@ def _save_manifest(dest_dir: Path, manifest: dict):
     path = dest_dir / _MANIFEST_NAME
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.rename(path)
+    os.replace(str(tmp), str(path))
 
 
 def _is_cached(dest_dir: Path, file_path: str, expected_sha: str) -> bool:
